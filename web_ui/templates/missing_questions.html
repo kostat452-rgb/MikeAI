@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% set active_page = "missing" %}
+{% block content %}
+<div class="header">
+    <h1>Missing Questions</h1>
+    <span class="text-muted">Вопросы без ответа / с плохим фидбеком</span>
+</div>
+
+{% if questions %}
+<table>
+    <tr><th>Вопрос</th><th>Причина</th><th>Кол-во</th><th>Обновлён</th></tr>
+    {% for q in questions %}
+    <tr>
+        <td title="{{ q.question }}">{{ q.question[:80] }}</td>
+        <td>{{ q.reason or '-' }}</td>
+        <td>{{ q.count or 1 }}</td>
+        <td>{{ (q.updated_at or q.created_at or '')[:16] }}</td>
+    </tr>
+    {% endfor %}
+</table>
+{% else %}
+<div class="section"><p class="text-muted">Пропущенных вопросов нет</p></div>
+{% endif %}
+{% endblock %}

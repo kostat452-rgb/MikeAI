@@ -3,13 +3,15 @@ No paid LLM calls here: fast heuristics before RAG/API.
 """
 from __future__ import annotations
 
+import hashlib
 import re
 from dataclasses import dataclass
-from typing import Iterable
 
 CYR_LAT_WORD_RE = re.compile(r"[a-zA-Zа-яА-ЯёЁ]{2,}")
 REPEATED_CHAR_RE = re.compile(r"(.)\1{5,}", re.IGNORECASE)
-PHONE_RE = re.compile(r"(?:\+7|8)?[\s\-\(]*\d{3}[\s\-\)]*\d{3}[\s\-]*\d{2}[\s\-]*\d{2}")
+PHONE_RE = re.compile(
+    r"(?:\+7|8)?[\s\-\(]*\d{3}[\s\-\)]*\d{3}[\s\-]*\d{2}[\s\-]*\d{2}"
+)
 
 UNSAFE_PATTERNS = [
     r"\b(?:наркотик|закладк|мефедрон|героин|кокаин)\b",
@@ -24,10 +26,28 @@ INJECTION_PATTERNS = [
     r"ты теперь",
     r"system prompt",
     r"developer message",
+    r"act as",
+    r"ignore previous instructions",
+    r"ignore all instructions",
 ]
 
-GREETINGS = {"привет", "здравствуйте", "добрый день", "добрый вечер", "доброе утро", "hello", "hi"}
-LEAD_WORDS = {"купить", "заказать", "цена", "стоимость", "оставить заявку", "связаться", "менеджер", "консультация"}
+GREETINGS = {
+    "привет", "здравствуйте", "добрый день", "добрый вечер",
+    "доброе утро", "hello", "hi", "здравствуй", "приветствую",
+}
+
+BUY_WORDS = {
+    "купить", "заказать", "цена", "стоимость", "оставить заявку",
+    "связаться", "менеджер", "консультация", "прайс", "тариф",
+}
+
+LEAD_WORDS = BUY_WORDS | {"заявка", "позвонить", "обратный звонок"}
+
+OFFTOPIC_PATTERNS = [
+    r"\b(?:погода|анекдот|шутк|расскажи историю|кто ты|кто тебя создал)\b",
+    r"\b(?:weather|joke|who are you)\b",
+]
+
 
 @dataclass(frozen=True)
 class QualityResult:
@@ -60,7 +80,9 @@ def is_unsafe(text: str) -> bool:
 def strip_prompt_injection(text: str) -> str:
     clean = text or ""
     for p in INJECTION_PATTERNS:
-        clean = re.sub(p, "[удалена инструкция из документа]", clean, flags=re.IGNORECASE)
+        clean = re.sub(
+            p, "[удалена инструкция из документа]", clean, flags=re.IGNORECASE
+        )
     return clean
 
 
@@ -91,24 +113,45 @@ def detect_intent(text: str) -> str:
         return "GREETING"
     if not validate_query(q).ok:
         return "GARBAGE"
+    if any(re.search(p, q, re.IGNORECASE) for p in OFFTOPIC_PATTERNS):
+        return "OFFTOPIC"
+    if any(word in q for word in BUY_WORDS):
+        return "BUY"
     if any(word in q for word in LEAD_WORDS) or PHONE_RE.search(q):
         return "LEAD"
     return "QUESTION"
 
 
-def validate_document_text(text: str, filename: str = "") -> QualityResult:
+def validate_document_text(
+    text: str, filename: str = "", min_length: int = 200
+) -> QualityResult:
     text = normalize_spaces(text)
-    if len(text) < 250:
-        return QualityResult(False, "Документ слишком короткий: минимум 250 символов полезного текста")
+    if len(text) < max(min_length, 200):
+        return QualityResult(
+            False,
+            f"Документ слишком короткий: минимум {min_length} символов полезного текста",
+        )
     if is_unsafe(text):
-        return QualityResult(False, "Документ содержит запрещённый/рискованный контент")
+        return QualityResult(
+            False, "Документ содержит запрещённый/рискованный контент"
+        )
     if has_repeated_garbage(text[:5000]):
-        return QualityResult(False, "Документ похож на мусор: много повторяющихся символов")
+        return QualityResult(
+            False, "Документ похож на мусор: много повторяющихся символов"
+        )
     w = words(text)
     if len(w) < 40:
         return QualityResult(False, "Слишком мало осмысленных слов")
     if unique_word_ratio(text) < 0.18:
-        return QualityResult(False, "Документ похож на мусор: низкая уникальность слов")
+        return QualityResult(
+            False, "Документ похож на мусор: низкая уникальность слов"
+        )
+    for p in INJECTION_PATTERNS:
+        if re.search(p, text, re.IGNORECASE):
+            return QualityResult(
+                False,
+                "Документ содержит подозрительные инструкции (prompt injection)",
+            )
     name_words = words(filename)
     if filename and len(filename) < 5 and not name_words:
         return QualityResult(False, "Плохое имя файла")
@@ -116,6 +159,5 @@ def validate_document_text(text: str, filename: str = "") -> QualityResult:
 
 
 def make_cache_key(tenant_id: str, question: str) -> str:
-    import hashlib
     raw = f"{tenant_id}:{normalize_spaces(question).lower()}".encode("utf-8")
     return hashlib.sha256(raw).hexdigest()

@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% set active_page = "analytics" %}
+{% block content %}
+<div class="header">
+    <h1>Analytics</h1>
+    <span class="text-muted">{{ company_name }}</span>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card"><div class="stat-number">{{ dash.messages }}</div><div class="stat-label">Всего сообщений</div></div>
+    <div class="stat-card"><div class="stat-number">{{ dash.users }}</div><div class="stat-label">Пользователей</div></div>
+    <div class="stat-card"><div class="stat-number">{{ active_users }}</div><div class="stat-label">Активные (7д)</div></div>
+    <div class="stat-card"><div class="stat-number">{{ dash.leads }}</div><div class="stat-label">Всего лидов</div></div>
+    <div class="stat-card"><div class="stat-number">{{ dash.leads_today }}</div><div class="stat-label">Лиды сегодня</div></div>
+    <div class="stat-card"><div class="stat-number">{{ conversion }}%</div><div class="stat-label">Конверсия</div></div>
+    <div class="stat-card"><div class="stat-number">{{ dash.missing_questions }}</div><div class="stat-label">Без ответа</div></div>
+    <div class="stat-card"><div class="stat-number">{{ dash.negative_feedback }}</div><div class="stat-label">Негативный FB</div></div>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+    <div class="section">
+        <h2>Использование сегодня</h2>
+        <p>Запросов: {{ today.requests }}</p>
+        <p>Токенов: {{ today.tokens }}</p>
+    </div>
+    <div class="section">
+        <h2>Использование за месяц</h2>
+        <p>Запросов: {{ month.requests }}</p>
+        <p>Токенов: {{ month.tokens }}</p>
+    </div>
+</div>
+
+{% if top_questions %}
+<div class="section">
+    <h2>Топ вопросов ({{ top_questions|length }})</h2>
+    <table>
+        <tr><th>Вопрос</th><th>Кол-во</th></tr>
+        {% for q in top_questions %}
+        <tr><td>{{ q.question[:100] }}</td><td>{{ q.cnt }}</td></tr>
+        {% endfor %}
+    </table>
+</div>
+{% endif %}
+
+{% if negative_fb %}
+<div class="section">
+    <h2>Негативный фидбек</h2>
+    <table>
+        <tr><th>Вопрос</th><th>Ответ</th><th>Дата</th></tr>
+        {% for f in negative_fb %}
+        <tr>
+            <td>{{ (f.question or '')[:80] }}</td>
+            <td>{{ (f.answer or '')[:80] }}</td>
+            <td>{{ (f.created_at or '')[:16] }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+</div>
+{% endif %}
+{% endblock %}

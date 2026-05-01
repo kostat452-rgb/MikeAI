@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% set active_page = "leads" %}
+{% block content %}
+<div class="header">
+    <h1>Leads</h1>
+    <span class="text-muted">Всего: {{ leads|length }}</span>
+</div>
+
+{% if leads %}
+<table>
+    <tr><th>ID</th><th>Имя</th><th>Username</th><th>Телефон</th><th>Вопрос</th><th>Статус</th><th>Дата</th><th>Действие</th></tr>
+    {% for l in leads %}
+    <tr>
+        <td>{{ l.id }}</td>
+        <td>{{ l.name or l.username or '-' }}</td>
+        <td>{{ ('@' + l.username) if l.username else '-' }}</td>
+        <td>{{ l.phone or '-' }}</td>
+        <td title="{{ l.question }}">{{ (l.question or '')[:60] }}</td>
+        <td>
+            {% if l.status == 'new' %}<span class="badge badge-new">new</span>
+            {% elif l.status == 'done' %}<span class="badge badge-done">done</span>
+            {% else %}<span class="badge">{{ l.status }}</span>{% endif %}
+        </td>
+        <td>{{ l.created_at[:16] if l.created_at else '-' }}</td>
+        <td>
+            <form method="POST" action="/admin/leads/status" style="display:inline">
+                <input type="hidden" name="lead_id" value="{{ l.id }}">
+                <select name="status" onchange="this.form.submit()">
+                    <option value="new" {% if l.status == 'new' %}selected{% endif %}>new</option>
+                    <option value="in_progress" {% if l.status == 'in_progress' %}selected{% endif %}>in progress</option>
+                    <option value="done" {% if l.status == 'done' %}selected{% endif %}>done</option>
+                    <option value="rejected" {% if l.status == 'rejected' %}selected{% endif %}>rejected</option>
+                </select>
+            </form>
+        </td>
+    </tr>
+    {% endfor %}
+</table>
+{% else %}
+<div class="section"><p class="text-muted">Лидов пока нет</p></div>
+{% endif %}
+{% endblock %}

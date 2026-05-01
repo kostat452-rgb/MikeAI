@@ -1,7 +1,9 @@
 import sqlite3
-from datetime import date
+from datetime import date, datetime, timedelta
 from pathlib import Path
+
 from core.guards import make_cache_key
+
 
 class Database:
     def __init__(self):
@@ -27,6 +29,7 @@ class Database:
                 bot_token TEXT,
                 owner_telegram_id INTEGER DEFAULT 0,
                 is_active INTEGER DEFAULT 1,
+                plan_id INTEGER DEFAULT 1,
                 daily_request_limit INTEGER DEFAULT 500,
                 monthly_token_limit INTEGER DEFAULT 500000,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -59,51 +62,127 @@ class Database:
             )""")
             conn.execute("""CREATE TABLE IF NOT EXISTS leads (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                tenant_id TEXT DEFAULT 'default',
-                user_id INTEGER, username TEXT, first_name TEXT,
-                phone TEXT, question TEXT, status TEXT DEFAULT 'new',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                tenant_id TEXT NOT NULL DEFAULT 'default',
+                user_id TEXT,
+                username TEXT,
+                name TEXT,
+                phone TEXT,
+                question TEXT,
+                status TEXT DEFAULT 'new',
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
             )""")
             conn.execute("""CREATE TABLE IF NOT EXISTS feedback (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                tenant_id TEXT DEFAULT 'default',
+                tenant_id TEXT NOT NULL DEFAULT 'default',
                 conversation_id INTEGER,
-                user_id INTEGER,
+                user_id TEXT,
+                question TEXT,
+                answer TEXT,
                 rating INTEGER,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
             )""")
             conn.execute("""CREATE TABLE IF NOT EXISTS missing_questions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                tenant_id TEXT DEFAULT 'default',
-                user_id INTEGER,
-                question TEXT,
+                tenant_id TEXT NOT NULL DEFAULT 'default',
+                user_id TEXT,
+                question TEXT NOT NULL,
                 reason TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                count INTEGER DEFAULT 1,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
             )""")
             conn.execute("""CREATE TABLE IF NOT EXISTS answer_cache (
-                cache_key TEXT PRIMARY KEY,
-                tenant_id TEXT DEFAULT 'default',
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tenant_id TEXT NOT NULL DEFAULT 'default',
+                question_hash TEXT NOT NULL,
                 question TEXT,
                 answer TEXT,
                 sources TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                expires_at TEXT,
+                UNIQUE(tenant_id, question_hash)
             )""")
-            # migrations for old DB
+            conn.execute("""CREATE TABLE IF NOT EXISTS plans (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                max_requests_per_day INTEGER,
+                max_tokens_per_month INTEGER,
+                max_files INTEGER,
+                max_bots INTEGER,
+                price_rub INTEGER
+            )""")
+            conn.execute("""CREATE TABLE IF NOT EXISTS tenant_settings (
+                tenant_id TEXT PRIMARY KEY,
+                plan_id INTEGER DEFAULT 1,
+                custom_prompt TEXT,
+                welcome_message TEXT,
+                bot_tone TEXT DEFAULT 'professional',
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )""")
+
+            # Seed default plans
+            existing = conn.execute("SELECT COUNT(*) FROM plans").fetchone()[0]
+            if existing == 0:
+                conn.execute(
+                    "INSERT INTO plans (name, max_requests_per_day, max_tokens_per_month, max_files, max_bots, price_rub) VALUES (?, ?, ?, ?, ?, ?)",
+                    ("Start", 200, 200000, 10, 1, 3900),
+                )
+                conn.execute(
+                    "INSERT INTO plans (name, max_requests_per_day, max_tokens_per_month, max_files, max_bots, price_rub) VALUES (?, ?, ?, ?, ?, ?)",
+                    ("Pro", 500, 500000, 20, 3, 9900),
+                )
+                conn.execute(
+                    "INSERT INTO plans (name, max_requests_per_day, max_tokens_per_month, max_files, max_bots, price_rub) VALUES (?, ?, ?, ?, ?, ?)",
+                    ("Business", 2000, 2000000, 50, 10, 19900),
+                )
+
+            # Migrations for old DBs
             for table in ["conversations", "users", "usage_stats"]:
                 try:
                     self._ensure_column(conn, table, "tenant_id", "TEXT DEFAULT 'default'")
                 except Exception:
                     pass
-            for col, definition in [("intent", "TEXT DEFAULT 'QUESTION'"), ("confidence", "REAL DEFAULT 0")]:
+            for col, defn in [
+                ("intent", "TEXT DEFAULT 'QUESTION'"),
+                ("confidence", "REAL DEFAULT 0"),
+            ]:
                 try:
-                    self._ensure_column(conn, "conversations", col, definition)
+                    self._ensure_column(conn, "conversations", col, defn)
                 except Exception:
                     pass
+            try:
+                self._ensure_column(conn, "missing_questions", "count", "INTEGER DEFAULT 1")
+            except Exception:
+                pass
+            try:
+                self._ensure_column(conn, "missing_questions", "updated_at", "TEXT DEFAULT CURRENT_TIMESTAMP")
+            except Exception:
+                pass
+            try:
+                self._ensure_column(conn, "feedback", "question", "TEXT")
+            except Exception:
+                pass
+            try:
+                self._ensure_column(conn, "feedback", "answer", "TEXT")
+            except Exception:
+                pass
+            try:
+                self._ensure_column(conn, "answer_cache", "expires_at", "TEXT")
+            except Exception:
+                pass
+
             conn.execute("CREATE INDEX IF NOT EXISTS idx_conv_tenant_user ON conversations(tenant_id, user_id)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_leads_tenant ON leads(tenant_id, created_at)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_missing_tenant ON missing_questions(tenant_id, created_at)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_feedback_tenant ON feedback(tenant_id, created_at)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_cache_tenant ON answer_cache(tenant_id, question_hash)")
 
-    def save_conversation(self, user_id, username, first_name, question, answer, sources="", tokens=0, tenant_id="default", intent="QUESTION", confidence=0):
+    # ---- Conversations ----
+
+    def save_conversation(
+        self, user_id, username, first_name, question, answer,
+        sources="", tokens=0, tenant_id="default", intent="QUESTION", confidence=0,
+    ):
         with self._connect() as conn:
             cur = conn.execute(
                 "INSERT INTO conversations (tenant_id, user_id, username, first_name, question, answer, sources, tokens_used, intent, confidence) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -116,6 +195,8 @@ class Database:
                 (tenant_id, today, tokens, tokens),
             )
             return cur.lastrowid
+
+    # ---- Users ----
 
     def upsert_user(self, user_id, username, first_name, last_name="", tenant_id="default"):
         with self._connect() as conn:
@@ -133,6 +214,13 @@ class Database:
         with self._connect() as conn:
             return conn.execute("SELECT COUNT(*) FROM conversations WHERE tenant_id = ?", (tenant_id,)).fetchone()[0]
 
+    def is_new_user(self, user_id, tenant_id="default"):
+        with self._connect() as conn:
+            r = conn.execute("SELECT message_count FROM users WHERE tenant_id = ? AND user_id = ?", (tenant_id, user_id)).fetchone()
+            return r is None or r[0] == 0
+
+    # ---- Stats ----
+
     def get_today_stats(self, tenant_id="default"):
         today = date.today().isoformat()
         with self._connect() as conn:
@@ -145,47 +233,223 @@ class Database:
             r = conn.execute("SELECT SUM(total_requests), SUM(total_tokens) FROM usage_stats WHERE tenant_id = ? AND date LIKE ?", (tenant_id, f"{month}%")).fetchone()
             return {"requests": r[0] or 0, "tokens": r[1] or 0}
 
-    def is_new_user(self, user_id, tenant_id="default"):
-        with self._connect() as conn:
-            r = conn.execute("SELECT message_count FROM users WHERE tenant_id = ? AND user_id = ?", (tenant_id, user_id)).fetchone()
-            return r is None or r[0] == 0
+    # ---- Leads ----
 
-    def save_lead(self, tenant_id, user_id, username, first_name, question, phone=""):
+    def create_lead(self, tenant_id, user_id, username, name, phone="", question=""):
         with self._connect() as conn:
             conn.execute(
-                "INSERT INTO leads (tenant_id, user_id, username, first_name, phone, question) VALUES (?, ?, ?, ?, ?, ?)",
-                (tenant_id, user_id, username, first_name, phone, question),
+                "INSERT INTO leads (tenant_id, user_id, username, name, phone, question) VALUES (?, ?, ?, ?, ?, ?)",
+                (tenant_id, str(user_id), username, name, phone, question),
             )
+
+    def save_lead(self, tenant_id, user_id, username, first_name, question, phone=""):
+        self.create_lead(tenant_id, user_id, username, first_name, phone, question)
+
+    def list_leads(self, tenant_id="default", limit=100, offset=0):
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM leads WHERE tenant_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?",
+                (tenant_id, limit, offset),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def get_leads_count(self, tenant_id="default"):
+        with self._connect() as conn:
+            return conn.execute("SELECT COUNT(*) FROM leads WHERE tenant_id = ?", (tenant_id,)).fetchone()[0]
+
+    def get_leads_today_count(self, tenant_id="default"):
+        today = date.today().isoformat()
+        with self._connect() as conn:
+            return conn.execute(
+                "SELECT COUNT(*) FROM leads WHERE tenant_id = ? AND created_at >= ?",
+                (tenant_id, today),
+            ).fetchone()[0]
+
+    def update_lead_status(self, lead_id: int, status: str, tenant_id: str = "default"):
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE leads SET status = ? WHERE id = ? AND tenant_id = ?",
+                (status, lead_id, tenant_id),
+            )
+
+    # ---- Missing Questions ----
 
     def save_missing_question(self, tenant_id, user_id, question, reason="low_confidence"):
         with self._connect() as conn:
-            conn.execute("INSERT INTO missing_questions (tenant_id, user_id, question, reason) VALUES (?, ?, ?, ?)", (tenant_id, user_id, question, reason))
+            existing = conn.execute(
+                "SELECT id, count FROM missing_questions WHERE tenant_id = ? AND question = ?",
+                (tenant_id, question),
+            ).fetchone()
+            if existing:
+                conn.execute(
+                    "UPDATE missing_questions SET count = count + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                    (existing[0],),
+                )
+            else:
+                conn.execute(
+                    "INSERT INTO missing_questions (tenant_id, user_id, question, reason) VALUES (?, ?, ?, ?)",
+                    (tenant_id, str(user_id), question, reason),
+                )
 
-    def get_cached_answer(self, tenant_id, question):
-        key = make_cache_key(tenant_id, question)
+    def list_missing_questions(self, tenant_id="default", limit=100, offset=0):
         with self._connect() as conn:
-            r = conn.execute("SELECT answer, sources FROM answer_cache WHERE cache_key = ?", (key,)).fetchone()
-            return dict(r) if r else None
+            rows = conn.execute(
+                "SELECT * FROM missing_questions WHERE tenant_id = ? ORDER BY count DESC, updated_at DESC LIMIT ? OFFSET ?",
+                (tenant_id, limit, offset),
+            ).fetchall()
+            return [dict(r) for r in rows]
 
-    def set_cached_answer(self, tenant_id, question, answer, sources=""):
-        key = make_cache_key(tenant_id, question)
+    def get_missing_count(self, tenant_id="default"):
+        with self._connect() as conn:
+            return conn.execute("SELECT COUNT(*) FROM missing_questions WHERE tenant_id = ?", (tenant_id,)).fetchone()[0]
+
+    # ---- Feedback ----
+
+    def add_feedback(self, tenant_id, conversation_id, user_id, rating, question="", answer=""):
         with self._connect() as conn:
             conn.execute(
-                "INSERT OR REPLACE INTO answer_cache (cache_key, tenant_id, question, answer, sources) VALUES (?, ?, ?, ?, ?)",
-                (key, tenant_id, question, answer, sources),
+                "INSERT INTO feedback (tenant_id, conversation_id, user_id, rating, question, answer) VALUES (?, ?, ?, ?, ?, ?)",
+                (tenant_id, conversation_id, str(user_id), rating, question, answer),
             )
 
-    def add_feedback(self, tenant_id, conversation_id, user_id, rating):
+    def list_feedback(self, tenant_id="default", limit=100, offset=0):
         with self._connect() as conn:
-            conn.execute("INSERT INTO feedback (tenant_id, conversation_id, user_id, rating) VALUES (?, ?, ?, ?)", (tenant_id, conversation_id, user_id, rating))
+            rows = conn.execute(
+                "SELECT * FROM feedback WHERE tenant_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?",
+                (tenant_id, limit, offset),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def get_negative_feedback(self, tenant_id="default", limit=50):
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT f.*, c.question, c.answer FROM feedback f LEFT JOIN conversations c ON f.conversation_id = c.id WHERE f.tenant_id = ? AND f.rating < 0 ORDER BY f.created_at DESC LIMIT ?",
+                (tenant_id, limit),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def get_feedback_count(self, tenant_id="default"):
+        with self._connect() as conn:
+            return conn.execute("SELECT COUNT(*) FROM feedback WHERE tenant_id = ?", (tenant_id,)).fetchone()[0]
+
+    def get_negative_feedback_count(self, tenant_id="default"):
+        with self._connect() as conn:
+            return conn.execute("SELECT COUNT(*) FROM feedback WHERE tenant_id = ? AND rating < 0", (tenant_id,)).fetchone()[0]
+
+    # ---- Cache ----
+
+    def get_cached_answer(self, tenant_id, question, ttl_hours=24):
+        key = make_cache_key(tenant_id, question)
+        with self._connect() as conn:
+            r = conn.execute(
+                "SELECT answer, sources, created_at, expires_at FROM answer_cache WHERE tenant_id = ? AND question_hash = ?",
+                (tenant_id, key),
+            ).fetchone()
+            if not r:
+                return None
+            expires = r["expires_at"]
+            if expires:
+                try:
+                    if datetime.fromisoformat(expires) < datetime.now():
+                        conn.execute("DELETE FROM answer_cache WHERE tenant_id = ? AND question_hash = ?", (tenant_id, key))
+                        return None
+                except Exception:
+                    pass
+            return {"answer": r["answer"], "sources": r["sources"]}
+
+    def set_cached_answer(self, tenant_id, question, answer, sources="", ttl_hours=24):
+        key = make_cache_key(tenant_id, question)
+        expires = (datetime.now() + timedelta(hours=ttl_hours)).isoformat()
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO answer_cache (tenant_id, question_hash, question, answer, sources, expires_at) VALUES (?, ?, ?, ?, ?, ?)",
+                (tenant_id, key, question, answer, sources, expires),
+            )
+
+    def clear_expired_cache(self, tenant_id="default"):
+        now = datetime.now().isoformat()
+        with self._connect() as conn:
+            conn.execute(
+                "DELETE FROM answer_cache WHERE tenant_id = ? AND expires_at IS NOT NULL AND expires_at < ?",
+                (tenant_id, now),
+            )
+
+    # ---- Analytics ----
 
     def get_dashboard_stats(self, tenant_id="default"):
         with self._connect() as conn:
             leads = conn.execute("SELECT COUNT(*) FROM leads WHERE tenant_id = ?", (tenant_id,)).fetchone()[0]
             missing = conn.execute("SELECT COUNT(*) FROM missing_questions WHERE tenant_id = ?", (tenant_id,)).fetchone()[0]
+            neg_fb = conn.execute("SELECT COUNT(*) FROM feedback WHERE tenant_id = ? AND rating < 0", (tenant_id,)).fetchone()[0]
             return {
                 "users": self.get_user_count(tenant_id),
                 "messages": self.get_message_count(tenant_id),
                 "leads": leads,
+                "leads_today": self.get_leads_today_count(tenant_id),
                 "missing_questions": missing,
+                "negative_feedback": neg_fb,
             }
+
+    def get_top_questions(self, tenant_id="default", limit=20):
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT question, COUNT(*) as cnt FROM conversations WHERE tenant_id = ? GROUP BY question ORDER BY cnt DESC LIMIT ?",
+                (tenant_id, limit),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def get_active_users(self, tenant_id="default", days=7):
+        cutoff = (datetime.now() - timedelta(days=days)).isoformat()
+        with self._connect() as conn:
+            return conn.execute(
+                "SELECT COUNT(*) FROM users WHERE tenant_id = ? AND last_seen >= ?",
+                (tenant_id, cutoff),
+            ).fetchone()[0]
+
+    def get_lead_conversion_rate(self, tenant_id="default"):
+        with self._connect() as conn:
+            users = self.get_user_count(tenant_id)
+            leads = conn.execute("SELECT COUNT(DISTINCT user_id) FROM leads WHERE tenant_id = ?", (tenant_id,)).fetchone()[0]
+            return round(leads / max(users, 1) * 100, 1)
+
+    # ---- Plans ----
+
+    def list_plans(self):
+        with self._connect() as conn:
+            rows = conn.execute("SELECT * FROM plans ORDER BY price_rub").fetchall()
+            return [dict(r) for r in rows]
+
+    def get_plan(self, plan_id: int):
+        with self._connect() as conn:
+            r = conn.execute("SELECT * FROM plans WHERE id = ?", (plan_id,)).fetchone()
+            return dict(r) if r else None
+
+    # ---- Conversations list for admin ----
+
+    def list_conversations(self, tenant_id="default", limit=50, offset=0):
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM conversations WHERE tenant_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?",
+                (tenant_id, limit, offset),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    # ---- Users list for admin ----
+
+    def list_users(self, tenant_id="default", limit=100, offset=0):
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM users WHERE tenant_id = ? ORDER BY last_seen DESC LIMIT ? OFFSET ?",
+                (tenant_id, limit, offset),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    # ---- Conversation by id (for feedback enrichment) ----
+
+    def get_conversation(self, conv_id: int, tenant_id: str = "default"):
+        with self._connect() as conn:
+            r = conn.execute(
+                "SELECT * FROM conversations WHERE id = ? AND tenant_id = ?",
+                (conv_id, tenant_id),
+            ).fetchone()
+            return dict(r) if r else None

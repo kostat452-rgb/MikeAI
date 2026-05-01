@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title|default("Mike AI") }} - {{ company_name }}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: #0f172a; min-height: 100vh; color: #e2e8f0; display: flex; }
+        .sidebar { width: 220px; background: #1e293b; padding: 20px 0; min-height: 100vh; border-right: 1px solid #334155; position: fixed; }
+        .sidebar .logo { text-align: center; padding: 10px 20px 20px; border-bottom: 1px solid #334155; font-size: 20px; font-weight: 700; color: #f1f5f9; }
+        .sidebar nav { padding: 15px 0; }
+        .sidebar nav a { display: block; padding: 10px 24px; color: #94a3b8; text-decoration: none; font-size: 14px; transition: all 0.2s; }
+        .sidebar nav a:hover, .sidebar nav a.active { background: #334155; color: #f1f5f9; }
+        .main { margin-left: 220px; flex: 1; padding: 30px; width: calc(100% - 220px); }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }
+        .header h1 { font-size: 22px; color: #f1f5f9; }
+        .header .tenant { color: #64748b; font-size: 12px; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 25px; }
+        .stat-card { background: #1e293b; border-radius: 10px; padding: 18px; text-align: center; border: 1px solid #334155; }
+        .stat-number { font-size: 28px; font-weight: 700; color: #3b82f6; }
+        .stat-label { font-size: 11px; color: #64748b; text-transform: uppercase; margin-top: 4px; }
+        table { width: 100%; border-collapse: collapse; background: #1e293b; border-radius: 10px; overflow: hidden; border: 1px solid #334155; }
+        th { background: #334155; color: #94a3b8; padding: 10px 14px; text-align: left; font-size: 12px; text-transform: uppercase; }
+        td { padding: 10px 14px; border-top: 1px solid #334155; font-size: 14px; }
+        tr:hover { background: #1a2332; }
+        .badge { padding: 3px 10px; border-radius: 12px; font-size: 12px; }
+        .badge-new { background: #1d4ed8; color: #bfdbfe; }
+        .badge-done { background: #065f46; color: #6ee7b7; }
+        .badge-neg { background: #7f1d1d; color: #fca5a5; }
+        .badge-pos { background: #065f46; color: #6ee7b7; }
+        .btn { background: #3b82f6; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-size: 13px; cursor: pointer; text-decoration: none; display: inline-block; }
+        .btn:hover { background: #2563eb; }
+        .btn-sm { padding: 4px 10px; font-size: 12px; }
+        .btn-danger { background: #991b1b; }
+        .btn-danger:hover { background: #7f1d1d; }
+        .upload-area { border: 2px dashed #475569; border-radius: 12px; padding: 30px; text-align: center; margin: 15px 0; cursor: pointer; transition: all 0.3s; }
+        .upload-area:hover { border-color: #3b82f6; }
+        .status-msg { margin-top: 12px; padding: 12px; border-radius: 8px; font-size: 14px; }
+        .status-msg.success { background: #065f46; color: #6ee7b7; }
+        .status-msg.error { background: #7f1d1d; color: #fca5a5; }
+        select, input[type=text] { background: #0f172a; color: #e2e8f0; border: 1px solid #475569; padding: 5px 10px; border-radius: 6px; font-size: 13px; }
+        .section { background: #1e293b; border-radius: 10px; padding: 20px; margin-bottom: 20px; border: 1px solid #334155; }
+        .section h2 { font-size: 16px; margin-bottom: 12px; color: #f1f5f9; }
+        .text-muted { color: #64748b; font-size: 13px; }
+        .logout-link { display: block; padding: 10px 24px; color: #64748b; text-decoration: none; font-size: 13px; position: absolute; bottom: 20px; }
+        .logout-link:hover { color: #fca5a5; }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <div class="logo">Mike AI</div>
+        <nav>
+            <a href="/" {% if active_page == "dashboard" %}class="active"{% endif %}>Dashboard</a>
+            <a href="/admin/documents" {% if active_page == "documents" %}class="active"{% endif %}>Documents</a>
+            <a href="/admin/leads" {% if active_page == "leads" %}class="active"{% endif %}>Leads</a>
+            <a href="/admin/missing-questions" {% if active_page == "missing" %}class="active"{% endif %}>Missing Q</a>
+            <a href="/admin/feedback" {% if active_page == "feedback" %}class="active"{% endif %}>Feedback</a>
+            <a href="/admin/analytics" {% if active_page == "analytics" %}class="active"{% endif %}>Analytics</a>
+            <a href="/admin/settings" {% if active_page == "settings" %}class="active"{% endif %}>Settings</a>
+        </nav>
+        <a href="/logout" class="logout-link">Выйти</a>
+    </div>
+    <div class="main">
+        {% block content %}{% endblock %}
+    </div>
+</body>
+</html>
