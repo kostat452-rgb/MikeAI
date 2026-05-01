@@ -1,7 +1,24 @@
 import os
 from pathlib import Path
+
 import aiohttp
+
 from config.settings import settings
+
+VALID_INTENTS = {"QUESTION", "GREETING", "GARBAGE", "OFFTOPIC", "BUY", "LEAD"}
+
+INTENT_SYSTEM_PROMPT = (
+    "Ты классификатор интентов пользователя для бизнес-бота.\n"
+    "Определи тип запроса. Ответь ОДНИМ словом из списка:\n"
+    "QUESTION — вопрос по товарам/услугам компании\n"
+    "GREETING — приветствие\n"
+    "GARBAGE — мусор, бессмысленный текст\n"
+    "OFFTOPIC — не по теме компании\n"
+    "BUY — хочет купить/узнать цену/заказать\n"
+    "LEAD — хочет оставить заявку/контакт\n"
+    "Ответь ТОЛЬКО одним словом."
+)
+
 
 class LLMService:
     def __init__(self):
@@ -14,7 +31,7 @@ class LLMService:
         self.model = settings.OPENROUTER_MODEL
         self.api_url = "https://openrouter.ai/api/v1/chat/completions"
 
-    async def ask(self, system_prompt: str, user_message: str) -> str:
+    async def _call(self, messages: list[dict], max_tokens: int = 0, temperature: float = 0.15) -> str:
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
@@ -23,12 +40,9 @@ class LLMService:
         }
         payload = {
             "model": self.model,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_message},
-            ],
-            "temperature": 0.15,
-            "max_tokens": settings.MAX_LLM_TOKENS,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens or settings.MAX_LLM_TOKENS,
         }
         async with aiohttp.ClientSession() as session:
             async with session.post(
@@ -42,3 +56,23 @@ class LLMService:
                     raise Exception(f"API Error {resp.status}: {data_text[:500]}")
                 data = await resp.json()
                 return data["choices"][0]["message"]["content"].strip()
+
+    async def ask(self, system_prompt: str, user_message: str) -> str:
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_message},
+        ]
+        return await self._call(messages)
+
+    async def classify_intent(self, user_message: str) -> str:
+        """LLM fallback intent classifier. Returns one of VALID_INTENTS."""
+        messages = [
+            {"role": "system", "content": INTENT_SYSTEM_PROMPT},
+            {"role": "user", "content": user_message},
+        ]
+        try:
+            result = await self._call(messages, max_tokens=10, temperature=0.0)
+            intent = result.strip().upper().split()[0] if result.strip() else "QUESTION"
+            return intent if intent in VALID_INTENTS else "QUESTION"
+        except Exception:
+            return "QUESTION"

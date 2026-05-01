@@ -1,10 +1,13 @@
+import csv
+import io
 import os
 import sys
 import secrets as py_secrets
+from datetime import date
 from pathlib import Path
 
 from fastapi import FastAPI, File, UploadFile, Request, Form, Depends, HTTPException, Query
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -203,6 +206,33 @@ async def update_lead(request: Request, lead_id: int = Form(...), status: str = 
         return RedirectResponse("/login")
     db.update_lead_status(lead_id, status, TENANT_ID)
     return RedirectResponse("/admin/leads", status_code=302)
+
+
+@app.get("/admin/leads/export")
+async def export_leads_csv(request: Request):
+    if not check_auth(request) and not check_api_key(request):
+        return JSONResponse({"error": "Не авторизован"}, status_code=401)
+    leads = db.list_leads(TENANT_ID, limit=10000)
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Дата", "Имя", "Телефон", "Username", "Вопрос", "Статус"])
+    for lead in leads:
+        writer.writerow([
+            (lead.get("created_at") or "")[:16],
+            lead.get("name") or "",
+            lead.get("phone") or "",
+            lead.get("username") or "",
+            lead.get("question") or "",
+            lead.get("status") or "",
+        ])
+    output.seek(0)
+    today_str = date.today().isoformat()
+    filename = f"leads_{TENANT_ID}_{today_str}.csv"
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
 
 
 # ---- Missing Questions ----

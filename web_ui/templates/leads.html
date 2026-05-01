@@ -2,8 +2,11 @@
 {% set active_page = "leads" %}
 {% block content %}
 <div class="header">
-    <h1>Leads</h1>
-    <span class="text-muted">Всего: {{ leads|length }}</span>
+    <div>
+        <h1>Leads</h1>
+        <span class="text-muted">Всего: {{ leads|length }}</span>
+    </div>
+    <a href="/admin/leads/export" class="btn">Экспорт CSV</a>
 </div>
 
 {% if leads %}

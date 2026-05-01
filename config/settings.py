@@ -41,6 +41,11 @@ class Settings(BaseSettings):
 
     NOTIFY_OWNER: bool = True
 
+    # Telegram mode
+    TELEGRAM_MODE: str = "polling"  # polling | webhook
+    WEBHOOK_URL: str = ""
+    WEBHOOK_PORT: int = 8443
+
     # Cache
     CACHE_TTL_HOURS: int = 24
 

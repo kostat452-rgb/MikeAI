@@ -252,6 +252,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     quality = validate_query(question)
     intent = detect_intent(question)
 
+    # LLM fallback: if heuristic returns QUESTION but text is long enough
+    # and ambiguous, use LLM classifier (skip short garbage to save budget)
+    if intent == "QUESTION" and len(question) >= 10:
+        try:
+            llm_intent = await llm.classify_intent(question)
+            if llm_intent != "QUESTION":
+                intent = llm_intent
+        except Exception:
+            pass
+
     if is_unsafe(question):
         await update.message.reply_text(
             "Я не могу помочь с этим запросом. Задайте вопрос по услугам компании."
@@ -356,11 +366,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 
-def main():
-    print(f"Бот {settings.COMPANY_NAME} запущен. Tenant={TENANT_ID}")
-    app = Application.builder().token(settings.TELEGRAM_BOT_TOKEN).build()
-
-    # Interactive lead conversation
+def _register_handlers(app: Application):
     lead_conv = ConversationHandler(
         entry_points=[CommandHandler("lead", lead_start)],
         states={
@@ -370,7 +376,6 @@ def main():
         },
         fallbacks=[CommandHandler("cancel", lead_cancel)],
     )
-
     app.add_handler(lead_conv)
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("help", help_command))
@@ -379,8 +384,25 @@ def main():
     app.add_handler(CallbackQueryHandler(feedback_callback, pattern=r"^fb:"))
     app.add_handler(CallbackQueryHandler(lead_button_callback, pattern=r"^lead_btn"))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    print("Готов!")
-    app.run_polling()
+
+
+def main():
+    mode = settings.TELEGRAM_MODE.lower()
+    print(f"Бот {settings.COMPANY_NAME} запущен. Tenant={TENANT_ID} Mode={mode}")
+    app = Application.builder().token(settings.TELEGRAM_BOT_TOKEN).build()
+    _register_handlers(app)
+
+    if mode == "webhook" and settings.WEBHOOK_URL:
+        print(f"Webhook: {settings.WEBHOOK_URL}")
+        app.run_webhook(
+            listen="0.0.0.0",
+            port=settings.WEBHOOK_PORT,
+            url_path=f"/bot/{settings.TELEGRAM_BOT_TOKEN}",
+            webhook_url=f"{settings.WEBHOOK_URL}/bot/{settings.TELEGRAM_BOT_TOKEN}",
+        )
+    else:
+        print("Polling mode")
+        app.run_polling()
 
 
 if __name__ == "__main__":

@@ -1,6 +1,40 @@
 # CHANGELOG Mike AI — SaaS Upgrade
 
-## Добавлено
+## Добавлено (v2 — приоритетные задачи)
+
+### 18. Экспорт лидов в CSV
+- Эндпоинт `GET /admin/leads/export`
+- Файл `leads_{tenant_id}_{date}.csv`
+- Поля: дата, имя, телефон, username, вопрос, статус
+- Кнопка "Экспорт CSV" на странице лидов
+
+### 19. LLM intent classifier (fallback)
+- Сначала эвристики из `detect_intent()`
+- Если результат QUESTION и текст >= 10 символов — вызов DeepSeek
+- Результат: QUESTION / GREETING / GARBAGE / OFFTOPIC / BUY / LEAD
+- Короткий мусор не вызывает LLM (экономия бюджета)
+- `classify_intent()` в `LLMService`
+
+### 20. Webhook-ready режим
+- `TELEGRAM_MODE=polling|webhook` в `.env`
+- По умолчанию polling (ничего не меняется)
+- Если webhook — используется `WEBHOOK_URL` и `WEBHOOK_PORT`
+
+### 21. Минимальный CI/CD
+- `.github/workflows/ci.yml`
+- Python 3.11, install requirements
+- Syntax check всех модулей
+- Import check ключевых модулей
+- Запуск pytest если есть каталог tests/
+
+### 22. Telegram уведомления владельцу
+- Уведомление при новом лиде (через /lead и автодетект)
+- Уведомление при новом пользователе
+- Использует `OWNER_TELEGRAM_ID` из `.env`
+
+---
+
+## Добавлено (v1 — SaaS ядро)
 
 ### 1. Multi-tenant ядро
 - `TENANT_ID` из `.env` используется во всех таблицах и запросах
