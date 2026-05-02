@@ -2,20 +2,21 @@
 {% set active_page = "feedback" %}
 {% block content %}
 <div class="header">
-    <h1>Feedback</h1>
-    <span class="text-muted">Оценки пользователей</span>
+    <h1>Оценки пользователей</h1>
+    <span class="text-muted">Как пользователи оценивают ответы бота</span>
 </div>
 
 {% if negative %}
 <div class="section">
-    <h2>Негативный фидбек</h2>
+    <h2>Негативные оценки</h2>
+    <p class="text-muted" style="margin-bottom: 12px;">Ответы, которые пользователям не помогли. Используйте для улучшения базы знаний.</p>
     <table>
-        <tr><th>Вопрос</th><th>Ответ</th><th>Оценка</th><th>Дата</th></tr>
+        <tr><th>Вопрос</th><th>Ответ бота</th><th>Оценка</th><th>Дата</th></tr>
         {% for f in negative %}
         <tr>
             <td title="{{ f.question }}">{{ (f.question or '')[:60] }}</td>
             <td title="{{ f.answer }}">{{ (f.answer or '')[:60] }}</td>
-            <td><span class="badge badge-neg">{{ f.rating }}</span></td>
+            <td><span class="badge badge-neg">плохо</span></td>
             <td>{{ (f.created_at or '')[:16] }}</td>
         </tr>
         {% endfor %}
@@ -27,15 +28,15 @@
 <div class="section">
     <h2>Все оценки</h2>
     <table>
-        <tr><th>ID</th><th>User</th><th>Вопрос</th><th>Оценка</th><th>Дата</th></tr>
+        <tr><th>ID</th><th>Пользователь</th><th>Вопрос</th><th>Оценка</th><th>Дата</th></tr>
         {% for f in feedback %}
         <tr>
             <td>{{ f.id }}</td>
             <td>{{ f.user_id }}</td>
             <td title="{{ f.question }}">{{ (f.question or '')[:60] }}</td>
             <td>
-                {% if f.rating and f.rating > 0 %}<span class="badge badge-pos">+{{ f.rating }}</span>
-                {% elif f.rating and f.rating < 0 %}<span class="badge badge-neg">{{ f.rating }}</span>
+                {% if f.rating and f.rating > 0 %}<span class="badge badge-pos">помогло</span>
+                {% elif f.rating and f.rating < 0 %}<span class="badge badge-neg">не помогло</span>
                 {% else %}<span class="badge">{{ f.rating }}</span>{% endif %}
             </td>
             <td>{{ (f.created_at or '')[:16] }}</td>
@@ -44,6 +45,8 @@
     </table>
 </div>
 {% else %}
-<div class="section"><p class="text-muted">Оценок пока нет</p></div>
+<div class="section">
+    <p class="text-muted">Оценок пока нет. Они появятся когда пользователи нажмут кнопки "Помогло" / "Не помогло" после ответа бота.</p>
+</div>
 {% endif %}
 {% endblock %}

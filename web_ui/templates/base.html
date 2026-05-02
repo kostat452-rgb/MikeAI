@@ -51,13 +51,13 @@
     <div class="sidebar">
         <div class="logo">Mike AI</div>
         <nav>
-            <a href="/" {% if active_page == "dashboard" %}class="active"{% endif %}>Dashboard</a>
-            <a href="/admin/documents" {% if active_page == "documents" %}class="active"{% endif %}>Documents</a>
-            <a href="/admin/leads" {% if active_page == "leads" %}class="active"{% endif %}>Leads</a>
-            <a href="/admin/missing-questions" {% if active_page == "missing" %}class="active"{% endif %}>Missing Q</a>
-            <a href="/admin/feedback" {% if active_page == "feedback" %}class="active"{% endif %}>Feedback</a>
-            <a href="/admin/analytics" {% if active_page == "analytics" %}class="active"{% endif %}>Analytics</a>
-            <a href="/admin/settings" {% if active_page == "settings" %}class="active"{% endif %}>Settings</a>
+            <a href="/" {% if active_page == "dashboard" %}class="active"{% endif %}>Главная</a>
+            <a href="/admin/documents" {% if active_page == "documents" %}class="active"{% endif %}>Документы</a>
+            <a href="/admin/leads" {% if active_page == "leads" %}class="active"{% endif %}>Заявки</a>
+            <a href="/admin/missing-questions" {% if active_page == "missing" %}class="active"{% endif %}>Без ответа</a>
+            <a href="/admin/feedback" {% if active_page == "feedback" %}class="active"{% endif %}>Оценки</a>
+            <a href="/admin/analytics" {% if active_page == "analytics" %}class="active"{% endif %}>Аналитика</a>
+            <a href="/admin/settings" {% if active_page == "settings" %}class="active"{% endif %}>Настройки</a>
         </nav>
         <a href="/logout" class="logout-link">Выйти</a>
     </div>

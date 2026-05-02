@@ -3,15 +3,15 @@
 {% block content %}
 <div class="header">
     <div>
-        <h1>Leads</h1>
+        <h1>Заявки</h1>
         <span class="text-muted">Всего: {{ leads|length }}</span>
     </div>
-    <a href="/admin/leads/export" class="btn">Экспорт CSV</a>
+    <a href="/admin/leads/export" class="btn">Скачать CSV</a>
 </div>
 
 {% if leads %}
 <table>
-    <tr><th>ID</th><th>Имя</th><th>Username</th><th>Телефон</th><th>Вопрос</th><th>Статус</th><th>Дата</th><th>Действие</th></tr>
+    <tr><th>ID</th><th>Имя</th><th>Telegram</th><th>Телефон</th><th>Вопрос</th><th>Статус</th><th>Дата</th><th>Действие</th></tr>
     {% for l in leads %}
     <tr>
         <td>{{ l.id }}</td>
@@ -20,8 +20,10 @@
         <td>{{ l.phone or '-' }}</td>
         <td title="{{ l.question }}">{{ (l.question or '')[:60] }}</td>
         <td>
-            {% if l.status == 'new' %}<span class="badge badge-new">new</span>
-            {% elif l.status == 'done' %}<span class="badge badge-done">done</span>
+            {% if l.status == 'new' %}<span class="badge badge-new">новая</span>
+            {% elif l.status == 'in_progress' %}<span class="badge" style="background:#92400e;color:#fde68a">в работе</span>
+            {% elif l.status == 'done' %}<span class="badge badge-done">готово</span>
+            {% elif l.status == 'rejected' %}<span class="badge badge-neg">отклонена</span>
             {% else %}<span class="badge">{{ l.status }}</span>{% endif %}
         </td>
         <td>{{ l.created_at[:16] if l.created_at else '-' }}</td>
@@ -29,10 +31,10 @@
             <form method="POST" action="/admin/leads/status" style="display:inline">
                 <input type="hidden" name="lead_id" value="{{ l.id }}">
                 <select name="status" onchange="this.form.submit()">
-                    <option value="new" {% if l.status == 'new' %}selected{% endif %}>new</option>
-                    <option value="in_progress" {% if l.status == 'in_progress' %}selected{% endif %}>in progress</option>
-                    <option value="done" {% if l.status == 'done' %}selected{% endif %}>done</option>
-                    <option value="rejected" {% if l.status == 'rejected' %}selected{% endif %}>rejected</option>
+                    <option value="new" {% if l.status == 'new' %}selected{% endif %}>новая</option>
+                    <option value="in_progress" {% if l.status == 'in_progress' %}selected{% endif %}>в работе</option>
+                    <option value="done" {% if l.status == 'done' %}selected{% endif %}>готово</option>
+                    <option value="rejected" {% if l.status == 'rejected' %}selected{% endif %}>отклонена</option>
                 </select>
             </form>
         </td>
@@ -40,6 +42,9 @@
     {% endfor %}
 </table>
 {% else %}
-<div class="section"><p class="text-muted">Лидов пока нет</p></div>
+<div class="section">
+    <p class="text-muted">Заявок пока нет.</p>
+    <p class="text-muted" style="margin-top: 8px;">Заявки появятся когда пользователь напишет <code>/lead</code> в боте или нажмёт кнопку "Оставить заявку".</p>
+</div>
 {% endif %}
 {% endblock %}

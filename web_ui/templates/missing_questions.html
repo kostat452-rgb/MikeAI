@@ -2,23 +2,36 @@
 {% set active_page = "missing" %}
 {% block content %}
 <div class="header">
-    <h1>Missing Questions</h1>
-    <span class="text-muted">Вопросы без ответа / с плохим фидбеком</span>
+    <h1>Вопросы без ответа</h1>
+    <span class="text-muted">Вопросы, на которые бот не смог ответить или получил негативную оценку</span>
 </div>
 
 {% if questions %}
+<div class="section">
+    <p class="text-muted" style="margin-bottom: 12px;">
+        Это вопросы ваших клиентов, на которые бот не нашёл ответ. 
+        Составьте документ с ответами на эти вопросы и загрузите его в раздел "Документы" — бот станет отвечать лучше.
+    </p>
+</div>
 <table>
-    <tr><th>Вопрос</th><th>Причина</th><th>Кол-во</th><th>Обновлён</th></tr>
+    <tr><th>Вопрос</th><th>Причина</th><th>Сколько раз спрашивали</th><th>Последний раз</th></tr>
     {% for q in questions %}
     <tr>
         <td title="{{ q.question }}">{{ q.question[:80] }}</td>
-        <td>{{ q.reason or '-' }}</td>
+        <td>
+            {% if q.reason == 'low_confidence' %}низкая уверенность
+            {% elif q.reason == 'negative_feedback' %}негативная оценка
+            {% elif q.reason and q.reason.startswith('bad_query:') %}плохой запрос
+            {% else %}{{ q.reason or '-' }}{% endif %}
+        </td>
         <td>{{ q.count or 1 }}</td>
         <td>{{ (q.updated_at or q.created_at or '')[:16] }}</td>
     </tr>
     {% endfor %}
 </table>
 {% else %}
-<div class="section"><p class="text-muted">Пропущенных вопросов нет</p></div>
+<div class="section">
+    <p class="text-muted">Все вопросы получили ответ. Отлично!</p>
+</div>
 {% endif %}
 {% endblock %}

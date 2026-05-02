@@ -3,8 +3,8 @@
 {% block content %}
 <div class="header">
     <div>
-        <h1>{{ bot_name }} - Dashboard</h1>
-        <span class="tenant">Tenant: {{ tenant_id }} | {{ company_name }}</span>
+        <h1>{{ bot_name }} — Панель управления</h1>
+        <span class="tenant">Клиент: {{ tenant_id }} | {{ company_name }}</span>
     </div>
 </div>
 
@@ -12,33 +12,33 @@
     <div class="stat-card"><div class="stat-number">{{ dash.users }}</div><div class="stat-label">Пользователи</div></div>
     <div class="stat-card"><div class="stat-number">{{ active_users }}</div><div class="stat-label">Активные (7д)</div></div>
     <div class="stat-card"><div class="stat-number">{{ dash.messages }}</div><div class="stat-label">Сообщения</div></div>
-    <div class="stat-card"><div class="stat-number">{{ dash.leads }}</div><div class="stat-label">Лиды</div></div>
-    <div class="stat-card"><div class="stat-number">{{ dash.leads_today }}</div><div class="stat-label">Лиды сегодня</div></div>
+    <div class="stat-card"><div class="stat-number">{{ dash.leads }}</div><div class="stat-label">Заявки</div></div>
+    <div class="stat-card"><div class="stat-number">{{ dash.leads_today }}</div><div class="stat-label">Заявки сегодня</div></div>
     <div class="stat-card"><div class="stat-number">{{ conversion }}%</div><div class="stat-label">Конверсия</div></div>
-    <div class="stat-card"><div class="stat-number">{{ docs_count }}</div><div class="stat-label">Фрагменты RAG</div></div>
+    <div class="stat-card"><div class="stat-number">{{ docs_count }}</div><div class="stat-label">Фрагменты базы</div></div>
     <div class="stat-card"><div class="stat-number">{{ dash.missing_questions }}</div><div class="stat-label">Без ответа</div></div>
-    <div class="stat-card"><div class="stat-number">{{ dash.negative_feedback }}</div><div class="stat-label">Негативный FB</div></div>
+    <div class="stat-card"><div class="stat-number">{{ dash.negative_feedback }}</div><div class="stat-label">Негативные оценки</div></div>
 </div>
 
 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
     <div class="section">
         <h2>Использование сегодня</h2>
-        <p>Запросов: {{ today.requests }} / {{ month.requests }} (месяц)</p>
-        <p>Токенов: {{ today.tokens }} / {{ month.tokens }} (месяц)</p>
+        <p>Запросов: {{ today.requests }} / {{ month.requests }} (за месяц)</p>
+        <p>Токенов: {{ today.tokens }} / {{ month.tokens }} (за месяц)</p>
     </div>
     <div class="section">
-        <h2>Документы в базе</h2>
+        <h2>Документы в базе знаний</h2>
         {% for s in sources %}
         <p>{{ s.name }} — {{ s.chunks }} фрагментов</p>
         {% else %}
-        <p class="text-muted">Документы не загружены</p>
+        <p class="text-muted">Документы не загружены. Перейдите в раздел "Документы".</p>
         {% endfor %}
     </div>
 </div>
 
 {% if top_questions %}
 <div class="section">
-    <h2>Топ вопросов</h2>
+    <h2>Популярные вопросы</h2>
     <table>
         <tr><th>Вопрос</th><th>Кол-во</th></tr>
         {% for q in top_questions %}
