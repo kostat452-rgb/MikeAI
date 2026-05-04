@@ -369,6 +369,14 @@ async def export_leads_csv(request: Request):
     )
 
 
+@app.get("/admin/leads/count")
+async def leads_count(request: Request):
+    if not check_auth(request):
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    leads = db.list_leads(TENANT_ID)
+    return {"count": len(leads), "newest_id": leads[0]["id"] if leads else 0}
+
+
 # ---- Missing Questions ----
 
 @app.get("/admin/missing-questions", response_class=HTMLResponse)

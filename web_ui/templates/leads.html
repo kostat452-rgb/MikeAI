@@ -3,10 +3,13 @@
 {% block content %}
 <div class="header">
     <div>
-        <h1>Заявки</h1>
-        <span class="text-muted">Всего: {{ leads|length }}</span>
+        <h1>Заявки <span id="lead-badge" style="display:none;background:#dc2626;color:#fff;font-size:13px;padding:2px 10px;border-radius:12px;margin-left:8px;animation:pulse 1s infinite"></span></h1>
+        <span class="text-muted">Всего: <span id="lead-total">{{ leads|length }}</span></span>
     </div>
-    <a href="/admin/leads/export" class="btn">Скачать CSV</a>
+    <div>
+        <button id="sound-toggle" class="btn" style="margin-right:8px;background:#334155;font-size:12px" onclick="toggleSound()">🔔 Звук: вкл</button>
+        <a href="/admin/leads/export" class="btn">Скачать CSV</a>
+    </div>
 </div>
 
 {% if leads %}
@@ -47,4 +50,108 @@
     <p class="text-muted" style="margin-top: 8px;">Заявки появятся когда пользователь напишет <code>/lead</code> в боте или нажмёт кнопку "Оставить заявку".</p>
 </div>
 {% endif %}
+
+<style>
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+</style>
+
+<script>
+(function() {
+    let knownCount = {{ leads|length }};
+    let knownNewest = {{ leads[0].id if leads else 0 }};
+    let soundEnabled = true;
+    let originalTitle = document.title;
+    let titleFlashing = false;
+    let titleInterval = null;
+
+    // Generate notification sound using Web Audio API
+    function playNotificationSound() {
+        if (!soundEnabled) return;
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            // First beep
+            const o1 = ctx.createOscillator();
+            const g1 = ctx.createGain();
+            o1.connect(g1); g1.connect(ctx.destination);
+            o1.type = 'sine'; o1.frequency.value = 880;
+            g1.gain.setValueAtTime(0.3, ctx.currentTime);
+            g1.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+            o1.start(ctx.currentTime); o1.stop(ctx.currentTime + 0.3);
+            // Second beep (higher)
+            const o2 = ctx.createOscillator();
+            const g2 = ctx.createGain();
+            o2.connect(g2); g2.connect(ctx.destination);
+            o2.type = 'sine'; o2.frequency.value = 1100;
+            g2.gain.setValueAtTime(0.3, ctx.currentTime + 0.35);
+            g2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.65);
+            o2.start(ctx.currentTime + 0.35); o2.stop(ctx.currentTime + 0.65);
+        } catch(e) {}
+    }
+
+    function flashTitle(newCount) {
+        if (titleFlashing) return;
+        titleFlashing = true;
+        let show = true;
+        titleInterval = setInterval(function() {
+            document.title = show
+                ? '🔔 Новая заявка! (' + newCount + ')'
+                : originalTitle;
+            show = !show;
+        }, 1000);
+    }
+
+    function stopFlashTitle() {
+        if (titleInterval) {
+            clearInterval(titleInterval);
+            titleInterval = null;
+        }
+        titleFlashing = false;
+        document.title = originalTitle;
+    }
+
+    // Stop flashing when tab becomes visible
+    document.addEventListener('visibilitychange', function() {
+        if (!document.hidden && titleFlashing) {
+            stopFlashTitle();
+        }
+    });
+
+    window.toggleSound = function() {
+        soundEnabled = !soundEnabled;
+        document.getElementById('sound-toggle').textContent =
+            soundEnabled ? '🔔 Звук: вкл' : '🔕 Звук: выкл';
+        document.getElementById('sound-toggle').style.background =
+            soundEnabled ? '#334155' : '#991b1b';
+    };
+
+    function showBadge(newLeads) {
+        const badge = document.getElementById('lead-badge');
+        badge.textContent = '+' + newLeads;
+        badge.style.display = 'inline';
+    }
+
+    function checkNewLeads() {
+        fetch('/admin/leads/count', { credentials: 'same-origin' })
+            .then(r => r.json())
+            .then(data => {
+                if (data.count > knownCount && data.newest_id > knownNewest) {
+                    const newLeads = data.count - knownCount;
+                    document.getElementById('lead-total').textContent = data.count;
+                    showBadge(newLeads);
+                    playNotificationSound();
+                    flashTitle(data.count);
+                    // Auto-reload table after 2 seconds
+                    setTimeout(function() { location.reload(); }, 2000);
+                }
+            })
+            .catch(function() {});
+    }
+
+    // Poll every 15 seconds
+    setInterval(checkNewLeads, 15000);
+})();
+</script>
 {% endblock %}
