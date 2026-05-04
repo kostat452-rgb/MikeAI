@@ -4,6 +4,7 @@ Listens for messages in a VK group using Long Poll API
 and responds using the same RAG + LLM pipeline as Telegram.
 """
 import asyncio
+import random
 from datetime import datetime, timedelta
 
 import aiohttp
