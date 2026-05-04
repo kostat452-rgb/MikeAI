@@ -19,9 +19,33 @@
     <div id="file-list" style="margin-top: 10px;"></div>
 </div>
 
-{% if sources %}
 <div class="section">
     <h2>Загруженные документы</h2>
+    {% if uploaded_docs %}
+    <table>
+        <tr>
+            <th>Файл</th>
+            <th>Размер</th>
+            <th>Фрагменты</th>
+            <th>Дата загрузки</th>
+            <th>Действие</th>
+        </tr>
+        {% for doc in uploaded_docs %}
+        <tr>
+            <td>{{ doc.filename }}</td>
+            <td>{% if doc.file_size > 1048576 %}{{ "%.1f"|format(doc.file_size / 1048576) }} МБ{% elif doc.file_size > 1024 %}{{ "%.1f"|format(doc.file_size / 1024) }} КБ{% else %}{{ doc.file_size }} Б{% endif %}</td>
+            <td>{{ doc.chunks_count }}</td>
+            <td>{{ (doc.created_at or "")[:16] }}</td>
+            <td>
+                <form method="POST" action="/admin/documents/delete" style="display:inline">
+                    <input type="hidden" name="source" value="{{ doc.filename }}">
+                    <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Удалить {{ doc.filename }}? Бот перестанет отвечать по этому документу.')">Удалить</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% elif sources %}
     <table>
         <tr><th>Файл</th><th>Фрагменты</th><th>Действие</th></tr>
         {% for s in sources %}
@@ -31,14 +55,16 @@
             <td>
                 <form method="POST" action="/admin/documents/delete" style="display:inline">
                     <input type="hidden" name="source" value="{{ s.name }}">
-                    <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Удалить {{ s.name }}? Бот перестанет отвечать по этому документу.')">Удалить</button>
+                    <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Удалить {{ s.name }}?')">Удалить</button>
                 </form>
             </td>
         </tr>
         {% endfor %}
     </table>
+    {% else %}
+    <p class="text-muted" style="padding: 20px 0; text-align: center;">Документов пока нет. Загрузите файлы с информацией о компании, чтобы бот мог отвечать на вопросы клиентов.</p>
+    {% endif %}
 </div>
-{% endif %}
 
 <script>
     const uploadArea = document.getElementById('upload-area');

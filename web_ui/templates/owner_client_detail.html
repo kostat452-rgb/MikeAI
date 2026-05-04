@@ -1,0 +1,144 @@
+{% extends "owner_base.html" %}
+{% block content %}
+<div class="header">
+    <h1>{{ client.company_name or client.id }}</h1>
+    <div style="display:flex;gap:10px;align-items:center">
+        {% if client.is_active %}
+            <span class="badge badge-active">Активен</span>
+        {% else %}
+            <span class="badge badge-inactive">Отключён</span>
+        {% endif %}
+        <a href="/owner/clients" class="btn btn-sm btn-outline">← Назад</a>
+    </div>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-number" style="color:#3b82f6">{{ stats.users }}</div>
+        <div class="stat-label">Пользователей</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number" style="color:#8b5cf6">{{ stats.messages }}</div>
+        <div class="stat-label">Сообщений</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number" style="color:#14b8a6">{{ stats.today_msgs }}</div>
+        <div class="stat-label">Сегодня</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number" style="color:#ec4899">{{ stats.leads }}</div>
+        <div class="stat-label">Заявок</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number" style="color:#f59e0b">{{ "{:,}".format(stats.month_tokens) }}</div>
+        <div class="stat-label">Токенов (мес)</div>
+    </div>
+</div>
+
+<!-- Token usage bar -->
+{% if client.monthly_token_limit and client.monthly_token_limit > 0 %}
+<div class="section">
+    <h2>Использование токенов</h2>
+    {% set pct = [stats.month_tokens / client.monthly_token_limit * 100, 100] | min %}
+    <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+        <span>{{ "{:,}".format(stats.month_tokens) }} / {{ "{:,}".format(client.monthly_token_limit) }}</span>
+        <span class="{% if pct > 90 %}text-gold{% endif %}">{{ "%.1f"|format(pct) }}%</span>
+    </div>
+    <div class="progress-bar" style="height:10px">
+        <div class="progress-fill" style="width:{{ pct }}%;{% if pct > 90 %}background:#ef4444{% elif pct > 70 %}background:#f59e0b{% endif %}"></div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Client info -->
+<div class="section">
+    <h2>Информация</h2>
+    <table>
+        <tr><td style="color:#9ca3af;width:200px">Tenant ID</td><td><code>{{ client.id }}</code></td></tr>
+        <tr><td style="color:#9ca3af">Компания</td><td>{{ client.company_name or "—" }}</td></tr>
+        <tr><td style="color:#9ca3af">Тариф</td><td><span class="badge badge-plan">{{ plan.name if plan else "—" }}</span> {% if plan %}({{ plan.price_rub }}₽/мес){% endif %}</td></tr>
+        <tr><td style="color:#9ca3af">Лимит запросов/день</td><td>{{ client.daily_request_limit }}</td></tr>
+        <tr><td style="color:#9ca3af">Лимит токенов/мес</td><td>{{ "{:,}".format(client.monthly_token_limit) if client.monthly_token_limit else "—" }}</td></tr>
+        <tr><td style="color:#9ca3af">Telegram Owner ID</td><td>{{ client.owner_telegram_id or "—" }}</td></tr>
+        <tr><td style="color:#9ca3af">Создан</td><td>{{ client.created_at or "—" }}</td></tr>
+    </table>
+</div>
+
+<!-- Actions -->
+<div class="section">
+    <h2>Управление</h2>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+        {% if client.is_active %}
+        <form method="POST" action="/owner/clients/{{ client.id }}/toggle">
+            <input type="hidden" name="action" value="disable">
+            <button class="btn btn-danger">Отключить клиента</button>
+        </form>
+        {% else %}
+        <form method="POST" action="/owner/clients/{{ client.id }}/toggle">
+            <input type="hidden" name="action" value="enable">
+            <button class="btn btn-blue">Включить клиента</button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Recent conversations -->
+<div class="section">
+    <h2>Последние сообщения</h2>
+    {% if conversations %}
+    <table>
+        <tr>
+            <th>Время</th>
+            <th>Пользователь</th>
+            <th>Вопрос</th>
+            <th>Ответ</th>
+            <th>Токены</th>
+        </tr>
+        {% for c in conversations[:20] %}
+        <tr>
+            <td class="text-muted" style="white-space:nowrap">{{ c.created_at[:16] if c.created_at else "—" }}</td>
+            <td>{{ c.first_name or c.username or c.user_id }}</td>
+            <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ c.question[:80] }}</td>
+            <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ c.answer[:80] if c.answer else "—" }}</td>
+            <td>{{ c.tokens_used or 0 }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% else %}
+    <p class="text-muted">Нет сообщений</p>
+    {% endif %}
+</div>
+
+<!-- Recent leads -->
+<div class="section">
+    <h2>Заявки</h2>
+    {% if leads %}
+    <table>
+        <tr>
+            <th>Время</th>
+            <th>Имя</th>
+            <th>Телефон</th>
+            <th>Вопрос</th>
+            <th>Статус</th>
+        </tr>
+        {% for l in leads[:20] %}
+        <tr>
+            <td class="text-muted" style="white-space:nowrap">{{ l.created_at[:16] if l.created_at else "—" }}</td>
+            <td>{{ l.name or l.username or "—" }}</td>
+            <td>{{ l.phone or "—" }}</td>
+            <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ l.question or "—" }}</td>
+            <td>
+                {% if l.status == 'new' %}
+                    <span class="badge badge-active">Новая</span>
+                {% else %}
+                    <span class="badge badge-plan">{{ l.status }}</span>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% else %}
+    <p class="text-muted">Нет заявок</p>
+    {% endif %}
+</div>
+{% endblock %}

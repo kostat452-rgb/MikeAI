@@ -14,6 +14,8 @@ class Database:
     def _connect(self):
         conn = sqlite3.connect(str(self.db_path), timeout=10)
         conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA busy_timeout=5000")
         return conn
 
     def _ensure_column(self, conn, table: str, column: str, definition: str):
@@ -102,6 +104,50 @@ class Database:
                 expires_at TEXT,
                 UNIQUE(tenant_id, question_hash)
             )""")
+            conn.execute("""CREATE TABLE IF NOT EXISTS uploaded_documents (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tenant_id TEXT NOT NULL DEFAULT 'default',
+                filename TEXT NOT NULL,
+                file_size INTEGER DEFAULT 0,
+                chunks_count INTEGER DEFAULT 0,
+                uploaded_by TEXT DEFAULT '',
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )""")
+            # ---- Lead Hunter tables ----
+            conn.execute("""CREATE TABLE IF NOT EXISTS hunter_tasks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tenant_id TEXT NOT NULL DEFAULT 'default',
+                platform TEXT NOT NULL,
+                target TEXT NOT NULL,
+                keywords TEXT NOT NULL,
+                message_template TEXT DEFAULT '',
+                daily_limit INTEGER DEFAULT 10,
+                is_active INTEGER DEFAULT 1,
+                last_scan TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )""")
+            conn.execute("""CREATE TABLE IF NOT EXISTS hunter_leads (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tenant_id TEXT NOT NULL DEFAULT 'default',
+                task_id INTEGER,
+                platform TEXT NOT NULL,
+                source_url TEXT DEFAULT '',
+                author_id TEXT DEFAULT '',
+                author_name TEXT DEFAULT '',
+                text TEXT DEFAULT '',
+                relevance_score REAL DEFAULT 0,
+                status TEXT DEFAULT 'new',
+                contacted INTEGER DEFAULT 0,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(task_id) REFERENCES hunter_tasks(id)
+            )""")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_hunter_leads_tenant ON hunter_leads(tenant_id, created_at)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_hunter_tasks_tenant ON hunter_tasks(tenant_id)")
+            try:
+                self._ensure_column(conn, "hunter_tasks", "city", "TEXT DEFAULT ''")
+            except Exception:
+                pass
+
             conn.execute("""CREATE TABLE IF NOT EXISTS plans (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
@@ -135,6 +181,19 @@ class Database:
                     "INSERT INTO plans (name, max_requests_per_day, max_tokens_per_month, max_files, max_bots, price_rub) VALUES (?, ?, ?, ?, ?, ?)",
                     ("Business", 2000, 2000000, 50, 10, 19900),
                 )
+
+            # Auto-register current tenant if not exists
+            try:
+                from config.settings import settings as _s
+                if _s.TENANT_ID and _s.TENANT_ID != "default":
+                    exists = conn.execute("SELECT 1 FROM tenants WHERE id = ?", (_s.TENANT_ID,)).fetchone()
+                    if not exists:
+                        conn.execute(
+                            "INSERT INTO tenants (id, company_name, owner_telegram_id, is_active, plan_id) VALUES (?, ?, ?, 1, 2)",
+                            (_s.TENANT_ID, _s.COMPANY_NAME, _s.OWNER_TELEGRAM_ID),
+                        )
+            except Exception:
+                pass
 
             # Migrations for old DBs
             for table in ["conversations", "users", "usage_stats"]:
@@ -176,6 +235,17 @@ class Database:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_missing_tenant ON missing_questions(tenant_id, created_at)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_feedback_tenant ON feedback(tenant_id, created_at)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_cache_tenant ON answer_cache(tenant_id, question_hash)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_docs_tenant ON uploaded_documents(tenant_id, created_at)")
+
+            # Agent system: source & temperature for leads
+            for col, defn in [
+                ("source", "TEXT DEFAULT 'manual'"),
+                ("temperature", "TEXT DEFAULT 'unknown'"),
+            ]:
+                try:
+                    self._ensure_column(conn, "leads", col, defn)
+                except Exception:
+                    pass
 
     # ---- Conversations ----
 
@@ -235,15 +305,17 @@ class Database:
 
     # ---- Leads ----
 
-    def create_lead(self, tenant_id, user_id, username, name, phone="", question=""):
+    def create_lead(self, tenant_id, user_id, username, name, phone="", question="",
+                     source="manual", temperature="unknown"):
         with self._connect() as conn:
             conn.execute(
-                "INSERT INTO leads (tenant_id, user_id, username, name, phone, question) VALUES (?, ?, ?, ?, ?, ?)",
-                (tenant_id, str(user_id), username, name, phone, question),
+                "INSERT INTO leads (tenant_id, user_id, username, name, phone, question, source, temperature) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (tenant_id, str(user_id), username, name, phone, question, source, temperature),
             )
 
-    def save_lead(self, tenant_id, user_id, username, first_name, question, phone=""):
-        self.create_lead(tenant_id, user_id, username, first_name, phone, question)
+    def save_lead(self, tenant_id, user_id, username, first_name, question, phone="",
+                  source="manual", temperature="unknown"):
+        self.create_lead(tenant_id, user_id, username, first_name, phone, question, source, temperature)
 
     def list_leads(self, tenant_id="default", limit=100, offset=0):
         with self._connect() as conn:
@@ -374,6 +446,10 @@ class Database:
                 (tenant_id, now),
             )
 
+    def clear_all_cache(self, tenant_id="default"):
+        with self._connect() as conn:
+            conn.execute("DELETE FROM answer_cache WHERE tenant_id = ?", (tenant_id,))
+
     # ---- Analytics ----
 
     def get_dashboard_stats(self, tenant_id="default"):
@@ -412,6 +488,30 @@ class Database:
             leads = conn.execute("SELECT COUNT(DISTINCT user_id) FROM leads WHERE tenant_id = ?", (tenant_id,)).fetchone()[0]
             return round(leads / max(users, 1) * 100, 1)
 
+    # ---- Rate / Quota checks ----
+
+    def check_daily_limit(self, tenant_id: str, limit: int) -> bool:
+        """Return True if tenant is under daily request limit."""
+        today = self.get_today_stats(tenant_id)
+        return today["requests"] < limit
+
+    def check_monthly_token_limit(self, tenant_id: str, limit: int) -> bool:
+        """Return True if tenant is under monthly token limit."""
+        month = self.get_month_stats(tenant_id)
+        return month["tokens"] < limit
+
+    def get_usage_vs_limits(self, tenant_id: str, daily_limit: int, monthly_token_limit: int) -> dict:
+        today = self.get_today_stats(tenant_id)
+        month = self.get_month_stats(tenant_id)
+        return {
+            "today_requests": today["requests"],
+            "daily_limit": daily_limit,
+            "daily_pct": min(round(today["requests"] / max(daily_limit, 1) * 100, 1), 100),
+            "month_tokens": month["tokens"],
+            "monthly_limit": monthly_token_limit,
+            "monthly_pct": min(round(month["tokens"] / max(monthly_token_limit, 1) * 100, 1), 100),
+        }
+
     # ---- Plans ----
 
     def list_plans(self):
@@ -444,6 +544,30 @@ class Database:
             ).fetchall()
             return [dict(r) for r in rows]
 
+    # ---- Uploaded Documents ----
+
+    def save_uploaded_document(self, tenant_id, filename, file_size=0, chunks_count=0, uploaded_by="admin"):
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT INTO uploaded_documents (tenant_id, filename, file_size, chunks_count, uploaded_by) VALUES (?, ?, ?, ?, ?)",
+                (tenant_id, filename, file_size, chunks_count, uploaded_by),
+            )
+
+    def list_uploaded_documents(self, tenant_id="default"):
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM uploaded_documents WHERE tenant_id = ? ORDER BY created_at DESC",
+                (tenant_id,),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def delete_uploaded_document(self, tenant_id, filename):
+        with self._connect() as conn:
+            conn.execute(
+                "DELETE FROM uploaded_documents WHERE tenant_id = ? AND filename = ?",
+                (tenant_id, filename),
+            )
+
     # ---- Conversation by id (for feedback enrichment) ----
 
     def get_conversation(self, conv_id: int, tenant_id: str = "default"):
@@ -453,3 +577,161 @@ class Database:
                 (conv_id, tenant_id),
             ).fetchone()
             return dict(r) if r else None
+
+    # ---- Owner / Superadmin ----
+
+    def list_tenants(self):
+        with self._connect() as conn:
+            rows = conn.execute("SELECT * FROM tenants ORDER BY created_at DESC").fetchall()
+            return [dict(r) for r in rows]
+
+    def get_tenant(self, tenant_id: str):
+        with self._connect() as conn:
+            r = conn.execute("SELECT * FROM tenants WHERE id = ?", (tenant_id,)).fetchone()
+            return dict(r) if r else None
+
+    def upsert_tenant(self, tenant_id: str, company_name: str = "", bot_token: str = "",
+                      owner_telegram_id: int = 0, is_active: int = 1, plan_id: int = 1):
+        with self._connect() as conn:
+            conn.execute("""
+                INSERT INTO tenants (id, company_name, bot_token, owner_telegram_id, is_active, plan_id)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    company_name=excluded.company_name,
+                    bot_token=excluded.bot_token,
+                    owner_telegram_id=excluded.owner_telegram_id,
+                    is_active=excluded.is_active,
+                    plan_id=excluded.plan_id
+            """, (tenant_id, company_name, bot_token, owner_telegram_id, is_active, plan_id))
+
+    def toggle_tenant(self, tenant_id: str, is_active: int):
+        with self._connect() as conn:
+            conn.execute("UPDATE tenants SET is_active = ? WHERE id = ?", (is_active, tenant_id))
+
+    def get_all_tenants_stats(self):
+        """Get aggregated stats for all tenants (for owner dashboard)."""
+        with self._connect() as conn:
+            tenants = conn.execute("SELECT * FROM tenants ORDER BY created_at DESC").fetchall()
+            result = []
+            for t in tenants:
+                tid = t["id"]
+                users = conn.execute("SELECT COUNT(*) FROM users WHERE tenant_id = ?", (tid,)).fetchone()[0]
+                messages = conn.execute("SELECT COUNT(*) FROM conversations WHERE tenant_id = ?", (tid,)).fetchone()[0]
+                leads = conn.execute("SELECT COUNT(*) FROM leads WHERE tenant_id = ?", (tid,)).fetchone()[0]
+                today_msgs = conn.execute(
+                    "SELECT COUNT(*) FROM conversations WHERE tenant_id = ? AND date(created_at) = date('now')",
+                    (tid,),
+                ).fetchone()[0]
+                month_tokens = conn.execute(
+                    "SELECT COALESCE(SUM(total_tokens), 0) FROM usage_stats WHERE tenant_id = ? AND date >= ?",
+                    (tid, date.today().replace(day=1).isoformat()),
+                ).fetchone()[0]
+                result.append({
+                    **dict(t),
+                    "users": users,
+                    "messages": messages,
+                    "leads": leads,
+                    "today_msgs": today_msgs,
+                    "month_tokens": month_tokens,
+                })
+            return result
+
+    def get_owner_summary(self):
+        """Global summary for owner dashboard."""
+        with self._connect() as conn:
+            total_tenants = conn.execute("SELECT COUNT(*) FROM tenants").fetchone()[0]
+            active_tenants = conn.execute("SELECT COUNT(*) FROM tenants WHERE is_active = 1").fetchone()[0]
+            total_users = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+            total_messages = conn.execute("SELECT COUNT(*) FROM conversations").fetchone()[0]
+            total_leads = conn.execute("SELECT COUNT(*) FROM leads").fetchone()[0]
+            today_messages = conn.execute(
+                "SELECT COUNT(*) FROM conversations WHERE date(created_at) = date('now')"
+            ).fetchone()[0]
+            return {
+                "total_tenants": total_tenants,
+                "active_tenants": active_tenants,
+                "total_users": total_users,
+                "total_messages": total_messages,
+                "total_leads": total_leads,
+                "today_messages": today_messages,
+            }
+
+    # ---- Lead Hunter ----
+
+    def create_hunter_task(self, tenant_id, platform, target, keywords,
+                           message_template="", daily_limit=10, city=""):
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT INTO hunter_tasks (tenant_id, platform, target, keywords, message_template, daily_limit, city) VALUES (?,?,?,?,?,?,?)",
+                (tenant_id, platform, target, keywords, message_template, daily_limit, city),
+            )
+
+    def list_hunter_tasks(self, tenant_id="default"):
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM hunter_tasks WHERE tenant_id = ? ORDER BY created_at DESC",
+                (tenant_id,),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def get_hunter_task(self, task_id: int):
+        with self._connect() as conn:
+            r = conn.execute("SELECT * FROM hunter_tasks WHERE id = ?", (task_id,)).fetchone()
+            return dict(r) if r else None
+
+    def toggle_hunter_task(self, task_id: int, is_active: int):
+        with self._connect() as conn:
+            conn.execute("UPDATE hunter_tasks SET is_active = ? WHERE id = ?", (is_active, task_id))
+
+    def delete_hunter_task(self, task_id: int):
+        with self._connect() as conn:
+            conn.execute("DELETE FROM hunter_leads WHERE task_id = ?", (task_id,))
+            conn.execute("DELETE FROM hunter_tasks WHERE id = ?", (task_id,))
+
+    def update_hunter_task_scan(self, task_id: int):
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE hunter_tasks SET last_scan = ? WHERE id = ?",
+                (datetime.now().isoformat(), task_id),
+            )
+
+    def save_hunter_lead(self, tenant_id, task_id, platform, source_url="",
+                         author_id="", author_name="", text="", relevance_score=0):
+        with self._connect() as conn:
+            exists = conn.execute(
+                "SELECT 1 FROM hunter_leads WHERE tenant_id = ? AND platform = ? AND author_id = ? AND task_id = ?",
+                (tenant_id, platform, author_id, task_id),
+            ).fetchone()
+            if exists:
+                return False
+            conn.execute(
+                "INSERT INTO hunter_leads (tenant_id, task_id, platform, source_url, author_id, author_name, text, relevance_score) VALUES (?,?,?,?,?,?,?,?)",
+                (tenant_id, task_id, platform, source_url, author_id, author_name, text, relevance_score),
+            )
+            return True
+
+    def list_hunter_leads(self, tenant_id="default", limit=50, status=None):
+        with self._connect() as conn:
+            if status:
+                rows = conn.execute(
+                    "SELECT hl.*, ht.target as task_target FROM hunter_leads hl LEFT JOIN hunter_tasks ht ON hl.task_id=ht.id WHERE hl.tenant_id = ? AND hl.status = ? ORDER BY hl.created_at DESC LIMIT ?",
+                    (tenant_id, status, limit),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT hl.*, ht.target as task_target FROM hunter_leads hl LEFT JOIN hunter_tasks ht ON hl.task_id=ht.id WHERE hl.tenant_id = ? ORDER BY hl.created_at DESC LIMIT ?",
+                    (tenant_id, limit),
+                ).fetchall()
+            return [dict(r) for r in rows]
+
+    def update_hunter_lead_status(self, lead_id: int, status: str):
+        with self._connect() as conn:
+            conn.execute("UPDATE hunter_leads SET status = ? WHERE id = ?", (status, lead_id))
+
+    def get_hunter_stats(self, tenant_id="default"):
+        with self._connect() as conn:
+            total = conn.execute("SELECT COUNT(*) FROM hunter_leads WHERE tenant_id = ?", (tenant_id,)).fetchone()[0]
+            new = conn.execute("SELECT COUNT(*) FROM hunter_leads WHERE tenant_id = ? AND status = 'new'", (tenant_id,)).fetchone()[0]
+            contacted = conn.execute("SELECT COUNT(*) FROM hunter_leads WHERE tenant_id = ? AND status = 'contacted'", (tenant_id,)).fetchone()[0]
+            tasks = conn.execute("SELECT COUNT(*) FROM hunter_tasks WHERE tenant_id = ? AND is_active = 1", (tenant_id,)).fetchone()[0]
+            return {"total": total, "new": new, "contacted": contacted, "active_tasks": tasks}

@@ -105,19 +105,34 @@ def validate_query(text: str) -> QualityResult:
     return QualityResult(True)
 
 
+def strip_greeting(text: str) -> str:
+    """Remove greeting prefix from text, return the rest."""
+    low = text.lower().strip()
+    for g in sorted(GREETINGS, key=len, reverse=True):
+        if low.startswith(g):
+            rest = low[len(g):].lstrip(" ,!.")
+            if rest:
+                return rest
+    return ""
+
+
 def detect_intent(text: str) -> str:
     q = normalize_spaces(text).lower()
     if not q:
         return "GARBAGE"
-    if q in GREETINGS or (len(q) <= 20 and any(q.startswith(g) for g in GREETINGS)):
+    # Pure greeting only if nothing meaningful follows
+    rest_after_greeting = strip_greeting(q)
+    if (q in GREETINGS or (len(q) <= 20 and any(q.startswith(g) for g in GREETINGS))) and not rest_after_greeting:
         return "GREETING"
-    if not validate_query(q).ok:
+    # If greeting + question, analyze the question part
+    check_text = rest_after_greeting or q
+    if not validate_query(check_text).ok:
         return "GARBAGE"
-    if any(re.search(p, q, re.IGNORECASE) for p in OFFTOPIC_PATTERNS):
+    if any(re.search(p, check_text, re.IGNORECASE) for p in OFFTOPIC_PATTERNS):
         return "OFFTOPIC"
-    if any(word in q for word in BUY_WORDS):
+    if any(word in check_text for word in BUY_WORDS):
         return "BUY"
-    if any(word in q for word in LEAD_WORDS) or PHONE_RE.search(q):
+    if any(word in check_text for word in LEAD_WORDS) or PHONE_RE.search(check_text):
         return "LEAD"
     return "QUESTION"
 

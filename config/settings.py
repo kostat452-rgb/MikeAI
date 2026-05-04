@@ -6,13 +6,15 @@ class Settings(BaseSettings):
     OWNER_TELEGRAM_ID: int = 0
     COMPANY_NAME: str = "Компания"
     WEB_PASSWORD: str = "mike123"
+    OWNER_PASSWORD: str = ""  # superadmin panel password
     API_KEY: str = ""
 
     # SaaS / tenant
     TENANT_ID: str = "default"
     BOT_NAME: str = "Ассистент"
     WELCOME_MESSAGE: str = "Здравствуйте! Я ассистент компании {COMPANY_NAME}. Чем могу помочь?"
-    BOT_TONE: str = "professional"
+    BOT_TONE: str = "friendly"
+    BOT_ROLE: str = "hybrid"  # seller | helper | hybrid
 
     # Limits
     DAILY_REQUEST_LIMIT: int = 500
@@ -28,7 +30,7 @@ class Settings(BaseSettings):
     CHROMA_PERSIST_DIR: str = "./data/chroma_db"
     TOP_K_RESULTS: int = 4
     MIN_RAG_SCORE: float = 0.72
-    RAG_CONFIDENCE_THRESHOLD: float = 0.72
+    RAG_CONFIDENCE_THRESHOLD: float = 0.78
     CHUNK_SIZE: int = 1500
     CHUNK_OVERLAP: int = 150
     EMBEDDING_MODEL: str = "intfloat/multilingual-e5-large"
@@ -40,6 +42,15 @@ class Settings(BaseSettings):
     LLM_TIMEOUT_SECONDS: int = 35
 
     NOTIFY_OWNER: bool = True
+
+    # VK Bot
+    VK_GROUP_TOKEN: str = ""
+    VK_GROUP_ID: int = 0
+    VK_ENABLED: bool = False
+    VK_SERVICE_KEY: str = ""  # Service key for Lead Hunter (newsfeed.search, wall.get)
+
+    # Widget
+    WIDGET_ENABLED: bool = True
 
     # Telegram mode
     TELEGRAM_MODE: str = "polling"  # polling | webhook

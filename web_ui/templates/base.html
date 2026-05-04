@@ -3,6 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#3b82f6">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="manifest" href="/static/manifest.json">
+    <link rel="apple-touch-icon" href="/static/icon-192.png">
     <title>{{ title|default("Mike AI") }} - {{ company_name }}</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -51,12 +56,13 @@
     <div class="sidebar">
         <div class="logo">Mike AI</div>
         <nav>
-            <a href="/" {% if active_page == "dashboard" %}class="active"{% endif %}>Главная</a>
+            <a href="/dashboard" {% if active_page == "dashboard" %}class="active"{% endif %}>Главная</a>
             <a href="/admin/documents" {% if active_page == "documents" %}class="active"{% endif %}>Документы</a>
             <a href="/admin/leads" {% if active_page == "leads" %}class="active"{% endif %}>Заявки</a>
             <a href="/admin/missing-questions" {% if active_page == "missing" %}class="active"{% endif %}>Без ответа</a>
             <a href="/admin/feedback" {% if active_page == "feedback" %}class="active"{% endif %}>Оценки</a>
             <a href="/admin/analytics" {% if active_page == "analytics" %}class="active"{% endif %}>Аналитика</a>
+            <a href="/admin/hunter" {% if active_page == "hunter" %}class="active"{% endif %}>Лид-хантер</a>
             <a href="/admin/settings" {% if active_page == "settings" %}class="active"{% endif %}>Настройки</a>
         </nav>
         <a href="/logout" class="logout-link">Выйти</a>
@@ -64,5 +70,10 @@
     <div class="main">
         {% block content %}{% endblock %}
     </div>
+    <script>
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/static/sw.js').catch(() => {});
+    }
+    </script>
 </body>
 </html>

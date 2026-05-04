@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title|default("Суперадминка") }} - Mike AI Owner</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: #0a0f1a; min-height: 100vh; color: #e2e8f0; display: flex; }
+        .sidebar { width: 240px; background: #111827; padding: 20px 0; min-height: 100vh; border-right: 1px solid #1f2937; position: fixed; }
+        .sidebar .logo { text-align: center; padding: 10px 20px 8px; font-size: 22px; font-weight: 700; color: #f59e0b; }
+        .sidebar .logo-sub { text-align: center; font-size: 11px; color: #6b7280; padding-bottom: 18px; border-bottom: 1px solid #1f2937; }
+        .sidebar nav { padding: 15px 0; }
+        .sidebar nav a { display: flex; align-items: center; gap: 10px; padding: 11px 24px; color: #9ca3af; text-decoration: none; font-size: 14px; transition: all 0.2s; }
+        .sidebar nav a:hover, .sidebar nav a.active { background: #1f2937; color: #f9fafb; }
+        .sidebar nav a .icon { width: 18px; text-align: center; font-size: 15px; }
+        .main { margin-left: 240px; flex: 1; padding: 30px; width: calc(100% - 240px); }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }
+        .header h1 { font-size: 22px; color: #f9fafb; }
+        .header .info { color: #6b7280; font-size: 12px; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 25px; }
+        .stat-card { background: #111827; border-radius: 12px; padding: 20px; text-align: center; border: 1px solid #1f2937; }
+        .stat-card.gold { border-color: #b45309; }
+        .stat-number { font-size: 32px; font-weight: 700; color: #f59e0b; }
+        .stat-label { font-size: 11px; color: #6b7280; text-transform: uppercase; margin-top: 4px; letter-spacing: 0.5px; }
+        table { width: 100%; border-collapse: collapse; background: #111827; border-radius: 12px; overflow: hidden; border: 1px solid #1f2937; }
+        th { background: #1f2937; color: #9ca3af; padding: 12px 16px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+        td { padding: 12px 16px; border-top: 1px solid #1f2937; font-size: 14px; }
+        tr:hover { background: #0d1321; }
+        .badge { padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 500; }
+        .badge-active { background: #064e3b; color: #6ee7b7; }
+        .badge-inactive { background: #7f1d1d; color: #fca5a5; }
+        .badge-plan { background: #1e3a5f; color: #93c5fd; }
+        .btn { background: #f59e0b; color: #111827; border: none; padding: 8px 18px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; text-decoration: none; display: inline-block; transition: all 0.2s; }
+        .btn:hover { background: #d97706; }
+        .btn-sm { padding: 5px 12px; font-size: 12px; }
+        .btn-blue { background: #2563eb; color: white; }
+        .btn-blue:hover { background: #1d4ed8; }
+        .btn-danger { background: #991b1b; color: #fca5a5; }
+        .btn-danger:hover { background: #7f1d1d; }
+        .btn-outline { background: transparent; border: 1px solid #374151; color: #9ca3af; }
+        .btn-outline:hover { background: #1f2937; color: #f9fafb; }
+        .section { background: #111827; border-radius: 12px; padding: 22px; margin-bottom: 20px; border: 1px solid #1f2937; }
+        .section h2 { font-size: 16px; margin-bottom: 14px; color: #f9fafb; }
+        .text-muted { color: #6b7280; font-size: 13px; }
+        .text-gold { color: #f59e0b; }
+        .logout-link { display: block; padding: 11px 24px; color: #6b7280; text-decoration: none; font-size: 13px; position: absolute; bottom: 20px; }
+        .logout-link:hover { color: #fca5a5; }
+        select, input[type=text], input[type=number], input[type=password] { background: #0a0f1a; color: #e2e8f0; border: 1px solid #374151; padding: 8px 12px; border-radius: 8px; font-size: 13px; }
+        .form-row { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+        .form-row label { min-width: 140px; font-size: 13px; color: #9ca3af; }
+        .form-row input, .form-row select { flex: 1; min-width: 200px; }
+        .progress-bar { height: 6px; background: #1f2937; border-radius: 4px; overflow: hidden; }
+        .progress-fill { height: 100%; background: #f59e0b; border-radius: 4px; transition: width 0.5s; }
+        @media (max-width: 768px) {
+            .sidebar { display: none; }
+            .main { margin-left: 0; width: 100%; padding: 15px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <div class="logo">Mike AI</div>
+        <div class="logo-sub">OWNER PANEL</div>
+        <nav>
+            <a href="/owner" {% if active_page == "owner_dashboard" %}class="active"{% endif %}><span class="icon">📊</span> Дашборд</a>
+            <a href="/owner/clients" {% if active_page == "owner_clients" %}class="active"{% endif %}><span class="icon">👥</span> Клиенты</a>
+            <a href="/owner/clients/add" {% if active_page == "owner_add" %}class="active"{% endif %}><span class="icon">➕</span> Добавить клиента</a>
+            <a href="/owner/plans" {% if active_page == "owner_plans" %}class="active"{% endif %}><span class="icon">💎</span> Тарифы</a>
+            <hr style="border-color:#1f2937;margin:10px 20px">
+            <a href="/dashboard" style="font-size:12px;color:#6b7280"><span class="icon">←</span> Админка клиента</a>
+        </nav>
+        <a href="/owner/logout" class="logout-link">Выйти</a>
+    </div>
+    <div class="main">
+        {% block content %}{% endblock %}
+    </div>
+</body>
+</html>

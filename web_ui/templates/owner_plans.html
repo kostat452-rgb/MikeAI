@@ -1,0 +1,29 @@
+{% extends "owner_base.html" %}
+{% block content %}
+<div class="header">
+    <h1>Тарифные планы</h1>
+</div>
+
+<table>
+    <tr>
+        <th>ID</th>
+        <th>Название</th>
+        <th>Запросов/день</th>
+        <th>Токенов/мес</th>
+        <th>Файлов</th>
+        <th>Ботов</th>
+        <th>Цена (₽/мес)</th>
+    </tr>
+    {% for p in plans %}
+    <tr>
+        <td>{{ p.id }}</td>
+        <td><strong>{{ p.name }}</strong></td>
+        <td>{{ "{:,}".format(p.max_requests_per_day) }}</td>
+        <td>{{ "{:,}".format(p.max_tokens_per_month) }}</td>
+        <td>{{ p.max_files }}</td>
+        <td>{{ p.max_bots }}</td>
+        <td class="text-gold" style="font-weight:700">{{ "{:,}".format(p.price_rub) }}₽</td>
+    </tr>
+    {% endfor %}
+</table>
+{% endblock %}

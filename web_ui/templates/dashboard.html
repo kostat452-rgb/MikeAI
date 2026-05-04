@@ -8,6 +8,40 @@
     </div>
 </div>
 
+{% set has_docs = (docs_count > 0) %}
+{% set has_messages = (dash.messages > 0) %}
+{% set has_leads = (dash.leads > 0) %}
+{% set has_widget = widget_enabled %}
+{% set onboarding_done = has_docs and has_messages and has_leads and has_widget %}
+{% if not onboarding_done %}
+<div class="section" style="background:linear-gradient(135deg,#1e293b,#0f172a);border:1px solid #3b82f6;margin-bottom:20px">
+    <h2 style="margin-top:0">🚀 Быстрый старт</h2>
+    <p style="color:#94a3b8;margin-bottom:16px">Выполните эти шаги, чтобы бот начал работать:</p>
+    <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;align-items:center;gap:10px">
+            <span style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;{% if has_docs %}background:#10b981;color:white{% else %}background:#334155;color:#94a3b8{% endif %}">{% if has_docs %}✓{% else %}1{% endif %}</span>
+            <span style="{% if has_docs %}color:#10b981{% else %}color:#e2e8f0{% endif %}">Загрузите базу знаний</span>
+            {% if not has_docs %}<a href="/admin/documents" style="color:#3b82f6;margin-left:auto;font-size:14px">Перейти →</a>{% endif %}
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+            <span style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;{% if has_messages %}background:#10b981;color:white{% else %}background:#334155;color:#94a3b8{% endif %}">{% if has_messages %}✓{% else %}2{% endif %}</span>
+            <span style="{% if has_messages %}color:#10b981{% else %}color:#e2e8f0{% endif %}">Задайте первый вопрос боту</span>
+            {% if not has_messages %}<a href="/widget/code" style="color:#3b82f6;margin-left:auto;font-size:14px">Код виджета →</a>{% endif %}
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+            <span style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;{% if has_widget %}background:#10b981;color:white{% else %}background:#334155;color:#94a3b8{% endif %}">{% if has_widget %}✓{% else %}3{% endif %}</span>
+            <span style="{% if has_widget %}color:#10b981{% else %}color:#e2e8f0{% endif %}">Подключите виджет на сайт</span>
+            {% if not has_widget %}<a href="/admin/settings" style="color:#3b82f6;margin-left:auto;font-size:14px">Настройки →</a>{% endif %}
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+            <span style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;{% if has_leads %}background:#10b981;color:white{% else %}background:#334155;color:#94a3b8{% endif %}">{% if has_leads %}✓{% else %}4{% endif %}</span>
+            <span style="{% if has_leads %}color:#10b981{% else %}color:#e2e8f0{% endif %}">Получите первую заявку</span>
+            {% if not has_leads %}<span style="color:#64748b;margin-left:auto;font-size:13px">Появится автоматически</span>{% endif %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <div class="stats-grid">
     <div class="stat-card"><div class="stat-number">{{ dash.users }}</div><div class="stat-label">Пользователи</div></div>
     <div class="stat-card"><div class="stat-number">{{ active_users }}</div><div class="stat-label">Активные (7д)</div></div>
@@ -22,9 +56,15 @@
 
 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
     <div class="section">
-        <h2>Использование сегодня</h2>
-        <p>Запросов: {{ today.requests }} / {{ month.requests }} (за месяц)</p>
-        <p>Токенов: {{ today.tokens }} / {{ month.tokens }} (за месяц)</p>
+        <h2>Лимиты тарифа</h2>
+        <p style="margin-bottom:8px">Запросов сегодня: <strong>{{ usage.today_requests }}</strong> / {{ usage.daily_limit }}</p>
+        <div style="background:#334155;border-radius:6px;height:14px;overflow:hidden;margin-bottom:12px">
+            <div style="background:{% if usage.daily_pct > 90 %}#ef4444{% elif usage.daily_pct > 70 %}#f59e0b{% else %}#10b981{% endif %};height:100%;width:{{ usage.daily_pct }}%;transition:width 0.3s"></div>
+        </div>
+        <p style="margin-bottom:8px">Токенов за месяц: <strong>{{ "{:,}".format(usage.month_tokens) }}</strong> / {{ "{:,}".format(usage.monthly_limit) }}</p>
+        <div style="background:#334155;border-radius:6px;height:14px;overflow:hidden">
+            <div style="background:{% if usage.monthly_pct > 90 %}#ef4444{% elif usage.monthly_pct > 70 %}#f59e0b{% else %}#3b82f6{% endif %};height:100%;width:{{ usage.monthly_pct }}%;transition:width 0.3s"></div>
+        </div>
     </div>
     <div class="section">
         <h2>Документы в базе знаний</h2>
@@ -33,6 +73,24 @@
         {% else %}
         <p class="text-muted">Документы не загружены. Перейдите в раздел "Документы".</p>
         {% endfor %}
+    </div>
+</div>
+
+<div class="section">
+    <h2>Активные каналы</h2>
+    <div style="display:flex;gap:12px;flex-wrap:wrap">
+        <span style="padding:8px 16px;border-radius:8px;background:#dcfce7;color:#166534;font-weight:600">Telegram</span>
+        {% if vk_enabled %}
+        <span style="padding:8px 16px;border-radius:8px;background:#dbeafe;color:#1e40af;font-weight:600">VK</span>
+        {% else %}
+        <span style="padding:8px 16px;border-radius:8px;background:#f3f4f6;color:#9ca3af">VK (не подключён)</span>
+        {% endif %}
+        {% if widget_enabled %}
+        <span style="padding:8px 16px;border-radius:8px;background:#dcfce7;color:#166534;font-weight:600">Виджет на сайт</span>
+        <a href="/widget/code" style="padding:8px 16px;border-radius:8px;background:#ede9fe;color:#6d28d9;text-decoration:none;font-weight:600">Код виджета</a>
+        {% else %}
+        <span style="padding:8px 16px;border-radius:8px;background:#f3f4f6;color:#9ca3af">Виджет (выкл)</span>
+        {% endif %}
     </div>
 </div>
 

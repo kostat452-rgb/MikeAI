@@ -13,6 +13,19 @@
         <tr><td>Имя бота</td><td>{{ settings.BOT_NAME }}</td></tr>
         <tr><td>Модель ИИ</td><td>{{ settings.OPENROUTER_MODEL }}</td></tr>
         <tr><td>Модель эмбеддингов</td><td>{{ settings.EMBEDDING_MODEL }}</td></tr>
+        <tr><td>Тон общения</td><td>{{ settings.BOT_TONE }}</td></tr>
+        <tr>
+            <td>Режим AI-агента</td>
+            <td>
+                {% if settings.BOT_ROLE == 'seller' %}
+                    <span style="color: #e74c3c; font-weight: bold;">Продавец</span> — активно продаёт, дожимает, предлагает upsell
+                {% elif settings.BOT_ROLE == 'helper' %}
+                    <span style="color: #3498db; font-weight: bold;">Помощник</span> — только отвечает на вопросы, без продаж
+                {% else %}
+                    <span style="color: #2ecc71; font-weight: bold;">Гибрид</span> — помогает, но мягко предлагает если видит интерес
+                {% endif %}
+            </td>
+        </tr>
     </table>
 </div>
 
