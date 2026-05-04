@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% set active_page = "documents" %}
+{% block content %}
+<div class="header">
+    <h1>Документы</h1>
+    <span class="text-muted">{{ docs_count }} фрагментов | Лимит: {{ max_files }} файлов, {{ max_chunks }} фрагментов</span>
+</div>
+
+<div class="section">
+    <h2>Загрузить файл</h2>
+    <p class="text-muted" style="margin-bottom: 10px;">Загрузите PDF или TXT с информацией о компании: прайс, FAQ, описание услуг, условия.</p>
+    <div class="upload-area" id="upload-area">
+        <p>Перетащите файлы сюда или нажмите для выбора</p>
+        <p class="text-muted" style="margin-top: 8px;">Форматы: PDF, TXT. Максимум {{ max_files }} файлов.</p>
+    </div>
+    <input type="file" id="file-input" accept=".pdf,.txt" multiple style="display:none">
+    <button class="btn" id="upload-btn" disabled>Загрузить</button>
+    <div id="status" class="status-msg" style="display:none"></div>
+    <div id="file-list" style="margin-top: 10px;"></div>
+</div>
+
+<div class="section">
+    <h2>Загруженные документы</h2>
+    {% if uploaded_docs %}
+    <table>
+        <tr>
+            <th>Файл</th>
+            <th>Размер</th>
+            <th>Фрагменты</th>
+            <th>Дата загрузки</th>
+            <th>Действие</th>
+        </tr>
+        {% for doc in uploaded_docs %}
+        <tr>
+            <td>{{ doc.filename }}</td>
+            <td>{% if doc.file_size > 1048576 %}{{ "%.1f"|format(doc.file_size / 1048576) }} МБ{% elif doc.file_size > 1024 %}{{ "%.1f"|format(doc.file_size / 1024) }} КБ{% else %}{{ doc.file_size }} Б{% endif %}</td>
+            <td>{{ doc.chunks_count }}</td>
+            <td>{{ (doc.created_at or "")[:16] }}</td>
+            <td>
+                <form method="POST" action="/admin/documents/delete" style="display:inline">
+                    <input type="hidden" name="source" value="{{ doc.filename }}">
+                    <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Удалить {{ doc.filename }}? Бот перестанет отвечать по этому документу.')">Удалить</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% elif sources %}
+    <table>
+        <tr><th>Файл</th><th>Фрагменты</th><th>Действие</th></tr>
+        {% for s in sources %}
+        <tr>
+            <td>{{ s.name }}</td>
+            <td>{{ s.chunks }}</td>
+            <td>
+                <form method="POST" action="/admin/documents/delete" style="display:inline">
+                    <input type="hidden" name="source" value="{{ s.name }}">
+                    <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Удалить {{ s.name }}?')">Удалить</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% else %}
+    <p class="text-muted" style="padding: 20px 0; text-align: center;">Документов пока нет. Загрузите файлы с информацией о компании, чтобы бот мог отвечать на вопросы клиентов.</p>
+    {% endif %}
+</div>
+
+<script>
+    const uploadArea = document.getElementById('upload-area');
+    const fileInput = document.getElementById('file-input');
+    const uploadBtn = document.getElementById('upload-btn');
+    const status = document.getElementById('status');
+    const fileList = document.getElementById('file-list');
+    let filesToUpload = [];
+    uploadArea.addEventListener('click', () => fileInput.click());
+    uploadArea.addEventListener('dragover', (e) => { e.preventDefault(); uploadArea.style.borderColor = '#3b82f6'; });
+    uploadArea.addEventListener('dragleave', () => { uploadArea.style.borderColor = '#475569'; });
+    uploadArea.addEventListener('drop', (e) => { e.preventDefault(); uploadArea.style.borderColor = '#475569'; handleFiles(e.dataTransfer.files); });
+    fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
+    function handleFiles(files) {
+        filesToUpload = Array.from(files);
+        fileList.innerHTML = filesToUpload.map(f => `<span style="margin-right:10px">${f.name} (${(f.size/1024).toFixed(1)} КБ)</span>`).join('');
+        uploadBtn.disabled = filesToUpload.length === 0;
+    }
+    uploadBtn.addEventListener('click', async () => {
+        uploadBtn.disabled = true; uploadBtn.textContent = 'Загрузка...';
+        for (const file of filesToUpload) {
+            const fd = new FormData(); fd.append('file', file);
+            try {
+                const r = await fetch('/upload', { method: 'POST', body: fd }); const d = await r.json();
+                status.style.display = 'block';
+                if (d.success) { status.className = 'status-msg success'; status.textContent = `${d.filename}: загружено ${d.chunks} фрагментов`; }
+                else { status.className = 'status-msg error'; status.textContent = d.error; }
+            } catch { status.style.display = 'block'; status.className = 'status-msg error'; status.textContent = 'Ошибка загрузки'; }
+        }
+        uploadBtn.textContent = 'Загрузить'; uploadBtn.disabled = false;
+        setTimeout(() => location.reload(), 1500);
+    });
+</script>
+{% endblock %}

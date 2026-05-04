@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  lint-and-check:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Python syntax check
+        run: |
+          python -m py_compile config/settings.py
+          python -m py_compile core/guards.py
+          python -m py_compile bot/database.py
+          python -m py_compile bot/main.py
+          python -m py_compile rag/document_loader.py
+          python -m py_compile rag/vector_store.py
+          python -m py_compile services/llm_service.py
+          python -m py_compile web_ui/app.py
+          python -m py_compile run.py
+
+      - name: Import check
+        run: |
+          python -c "from config.settings import Settings"
+          python -c "from core.guards import detect_intent, validate_query, validate_document_text"
+          python -c "from bot.database import Database"
+
+      - name: Run tests
+        run: |
+          if [ -d "tests" ]; then
+            pip install pytest
+            python -m pytest tests/ -v
+          else
+            echo "No tests directory found, skipping"
+          fi

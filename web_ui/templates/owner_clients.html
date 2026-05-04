@@ -1,0 +1,67 @@
+{% extends "owner_base.html" %}
+{% block content %}
+<div class="header">
+    <h1>Клиенты ({{ clients|length }})</h1>
+    <a href="/owner/clients/add" class="btn">+ Добавить клиента</a>
+</div>
+
+{% if clients %}
+<table>
+    <tr>
+        <th>ID</th>
+        <th>Компания</th>
+        <th>Статус</th>
+        <th>Тариф</th>
+        <th>Создан</th>
+        <th>Пользователи</th>
+        <th>Сообщений</th>
+        <th>Токены (мес)</th>
+        <th>Заявки</th>
+        <th>Действия</th>
+    </tr>
+    {% for c in clients %}
+    <tr>
+        <td><code style="font-size:12px">{{ c.id }}</code></td>
+        <td><strong>{{ c.company_name or c.id }}</strong></td>
+        <td>
+            {% if c.is_active %}
+                <span class="badge badge-active">Активен</span>
+            {% else %}
+                <span class="badge badge-inactive">Отключён</span>
+            {% endif %}
+        </td>
+        <td><span class="badge badge-plan">{{ c.plan_name or "—" }}</span></td>
+        <td class="text-muted">{{ c.created_at[:10] if c.created_at else "—" }}</td>
+        <td>{{ c.users }}</td>
+        <td>{{ c.messages }}</td>
+        <td>
+            {{ "{:,}".format(c.month_tokens) }}
+            {% if c.monthly_token_limit and c.monthly_token_limit > 0 %}
+            <span class="text-muted">/ {{ "{:,}".format(c.monthly_token_limit) }}</span>
+            {% endif %}
+        </td>
+        <td>{{ c.leads }}</td>
+        <td style="display:flex;gap:6px">
+            <a href="/owner/clients/{{ c.id }}" class="btn btn-sm btn-outline">Подробнее</a>
+            {% if c.is_active %}
+            <form method="POST" action="/owner/clients/{{ c.id }}/toggle" style="margin:0">
+                <input type="hidden" name="action" value="disable">
+                <button type="submit" class="btn btn-sm btn-danger">Выкл</button>
+            </form>
+            {% else %}
+            <form method="POST" action="/owner/clients/{{ c.id }}/toggle" style="margin:0">
+                <input type="hidden" name="action" value="enable">
+                <button type="submit" class="btn btn-sm btn-blue">Вкл</button>
+            </form>
+            {% endif %}
+        </td>
+    </tr>
+    {% endfor %}
+</table>
+{% else %}
+<div class="section" style="text-align:center;padding:60px">
+    <p style="font-size:18px;color:#6b7280;margin-bottom:16px">Нет клиентов</p>
+    <a href="/owner/clients/add" class="btn">Добавить первого клиента</a>
+</div>
+{% endif %}
+{% endblock %}

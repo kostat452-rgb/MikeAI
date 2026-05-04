@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mike AI — AI-ассистент для бизнеса</title>
+    <meta name="description" content="AI-бот для бизнеса. Отвечает клиентам 24/7, собирает заявки, работает в Telegram, VK и на сайте.">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: #0a0f1e; color: #e2e8f0; }
+        
+        /* Nav */
+        .nav { position: fixed; top: 0; width: 100%; z-index: 100; background: rgba(10,15,30,0.9); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(59,130,246,0.15); }
+        .nav-inner { max-width: 1200px; margin: 0 auto; padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; }
+        .nav-logo { font-size: 22px; font-weight: 800; color: #fff; text-decoration: none; }
+        .nav-logo span { color: #3b82f6; }
+        .nav-links { display: flex; gap: 28px; align-items: center; }
+        .nav-links a { color: #94a3b8; text-decoration: none; font-size: 14px; transition: color 0.2s; }
+        .nav-links a:hover { color: #fff; }
+        .nav-btn { background: #3b82f6; color: #fff !important; padding: 8px 20px; border-radius: 8px; font-weight: 600; }
+        .nav-btn:hover { background: #2563eb; }
+
+        /* Hero */
+        .hero { padding: 140px 24px 80px; text-align: center; background: radial-gradient(ellipse at top, rgba(59,130,246,0.12) 0%, transparent 60%); }
+        .hero h1 { font-size: 52px; font-weight: 800; line-height: 1.15; max-width: 800px; margin: 0 auto 24px; }
+        .hero h1 span { background: linear-gradient(135deg, #3b82f6, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .hero p { font-size: 20px; color: #94a3b8; max-width: 600px; margin: 0 auto 36px; line-height: 1.6; }
+        .hero-btns { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+        .btn-primary { background: #3b82f6; color: #fff; padding: 14px 32px; border-radius: 10px; font-size: 16px; font-weight: 600; text-decoration: none; transition: all 0.2s; border: none; cursor: pointer; }
+        .btn-primary:hover { background: #2563eb; transform: translateY(-1px); }
+        .btn-outline { background: transparent; color: #e2e8f0; padding: 14px 32px; border-radius: 10px; font-size: 16px; font-weight: 600; text-decoration: none; border: 1px solid #334155; transition: all 0.2s; }
+        .btn-outline:hover { border-color: #3b82f6; color: #3b82f6; }
+
+        /* Stats bar */
+        .stats-bar { display: flex; justify-content: center; gap: 48px; padding: 40px 24px; flex-wrap: wrap; }
+        .stat-item { text-align: center; }
+        .stat-num { font-size: 36px; font-weight: 800; color: #3b82f6; }
+        .stat-text { font-size: 14px; color: #64748b; margin-top: 4px; }
+
+        /* Section */
+        .section { padding: 80px 24px; }
+        .section-dark { background: #0f172a; }
+        .section-title { text-align: center; font-size: 36px; font-weight: 700; margin-bottom: 16px; }
+        .section-sub { text-align: center; color: #94a3b8; font-size: 18px; max-width: 600px; margin: 0 auto 48px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+
+        /* Features */
+        .features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; }
+        .feature-card { background: #1e293b; border: 1px solid #334155; border-radius: 16px; padding: 32px; transition: all 0.3s; }
+        .feature-card:hover { border-color: #3b82f6; transform: translateY(-4px); }
+        .feature-icon { font-size: 36px; margin-bottom: 16px; }
+        .feature-card h3 { font-size: 20px; margin-bottom: 10px; color: #f1f5f9; }
+        .feature-card p { color: #94a3b8; font-size: 15px; line-height: 1.6; }
+
+        /* How it works */
+        .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 32px; position: relative; }
+        .step { text-align: center; position: relative; }
+        .step-num { width: 56px; height: 56px; background: linear-gradient(135deg, #3b82f6, #8b5cf6); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 800; margin: 0 auto 20px; }
+        .step h3 { font-size: 18px; margin-bottom: 10px; }
+        .step p { color: #94a3b8; font-size: 14px; line-height: 1.6; }
+
+        /* Pricing */
+        .pricing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; max-width: 1000px; margin: 0 auto; }
+        .price-card { background: #1e293b; border: 1px solid #334155; border-radius: 16px; padding: 36px; position: relative; }
+        .price-card.popular { border-color: #3b82f6; }
+        .price-card.popular::before { content: "Популярный"; position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: #3b82f6; color: #fff; padding: 4px 16px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+        .price-name { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
+        .price-amount { font-size: 40px; font-weight: 800; color: #3b82f6; margin-bottom: 4px; }
+        .price-amount span { font-size: 16px; font-weight: 400; color: #64748b; }
+        .price-desc { color: #64748b; font-size: 14px; margin-bottom: 24px; }
+        .price-features { list-style: none; margin-bottom: 28px; }
+        .price-features li { padding: 8px 0; color: #94a3b8; font-size: 14px; border-bottom: 1px solid #1a2332; }
+        .price-features li::before { content: "✓ "; color: #22c55e; font-weight: 700; }
+        .price-btn { display: block; text-align: center; padding: 14px; border-radius: 10px; text-decoration: none; font-weight: 600; font-size: 15px; transition: all 0.2s; }
+        .price-btn-primary { background: #3b82f6; color: #fff; }
+        .price-btn-primary:hover { background: #2563eb; }
+        .price-btn-outline { border: 1px solid #334155; color: #e2e8f0; }
+        .price-btn-outline:hover { border-color: #3b82f6; }
+
+        /* Channels */
+        .channels { display: flex; justify-content: center; gap: 40px; flex-wrap: wrap; margin-top: 40px; }
+        .channel { text-align: center; background: #1e293b; border: 1px solid #334155; border-radius: 16px; padding: 32px 40px; min-width: 180px; }
+        .channel-icon { font-size: 48px; margin-bottom: 12px; }
+        .channel-name { font-size: 16px; font-weight: 600; }
+
+        /* Contact form */
+        .contact-form { max-width: 520px; margin: 0 auto; background: #1e293b; border: 1px solid #334155; border-radius: 16px; padding: 40px; }
+        .contact-form h3 { font-size: 24px; text-align: center; margin-bottom: 24px; }
+        .form-group { margin-bottom: 16px; }
+        .form-group label { display: block; font-size: 13px; color: #94a3b8; margin-bottom: 6px; }
+        .form-group input, .form-group textarea, .form-group select { width: 100%; padding: 12px 16px; background: #0f172a; border: 1px solid #334155; border-radius: 8px; color: #e2e8f0; font-size: 15px; font-family: inherit; }
+        .form-group input:focus, .form-group textarea:focus { outline: none; border-color: #3b82f6; }
+        .form-group textarea { height: 80px; resize: vertical; }
+        .form-submit { width: 100%; padding: 14px; background: #3b82f6; color: #fff; border: none; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+        .form-submit:hover { background: #2563eb; }
+        .form-submit:disabled { background: #475569; cursor: not-allowed; }
+        .form-msg { text-align: center; margin-top: 16px; font-size: 14px; padding: 10px; border-radius: 8px; display: none; }
+        .form-msg.success { display: block; background: #065f46; color: #6ee7b7; }
+        .form-msg.error { display: block; background: #7f1d1d; color: #fca5a5; }
+
+        /* Footer */
+        .footer { padding: 40px 24px; border-top: 1px solid #1e293b; text-align: center; color: #475569; font-size: 13px; }
+        .footer a { color: #64748b; text-decoration: none; }
+        .footer a:hover { color: #3b82f6; }
+
+        /* Mobile */
+        @media (max-width: 768px) {
+            .hero h1 { font-size: 32px; }
+            .hero p { font-size: 16px; }
+            .nav-links { gap: 12px; }
+            .nav-links a:not(.nav-btn) { display: none; }
+            .stats-bar { gap: 24px; }
+            .features-grid { grid-template-columns: 1fr; }
+            .pricing-grid { grid-template-columns: 1fr; }
+            .channels { gap: 16px; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Nav -->
+<div class="nav">
+    <div class="nav-inner">
+        <a href="/" class="nav-logo">Mike <span>AI</span></a>
+        <div class="nav-links">
+            <a href="#features">Возможности</a>
+            <a href="#how">Как работает</a>
+            <a href="#pricing">Тарифы</a>
+            <a href="#contact" class="nav-btn">Подключить</a>
+        </div>
+    </div>
+</div>
+
+<!-- Hero -->
+<section class="hero">
+    <h1>AI-ассистент для вашего <span>бизнеса</span></h1>
+    <p>Бот, который отвечает клиентам 24/7 по базе знаний вашей компании. Собирает заявки и работает в Telegram, VK и на сайте.</p>
+    <div class="hero-btns">
+        <a href="#contact" class="btn-primary">Подключить бота</a>
+        <a href="https://t.me/{{ bot_username }}" class="btn-outline" target="_blank">Попробовать демо</a>
+    </div>
+</section>
+
+<!-- Stats -->
+<div class="stats-bar">
+    <div class="stat-item">
+        <div class="stat-num">24/7</div>
+        <div class="stat-text">Работает без выходных</div>
+    </div>
+    <div class="stat-item">
+        <div class="stat-num">3</div>
+        <div class="stat-text">Канала: Telegram, VK, Сайт</div>
+    </div>
+    <div class="stat-item">
+        <div class="stat-num">&lt;5 сек</div>
+        <div class="stat-text">Время ответа</div>
+    </div>
+    <div class="stat-item">
+        <div class="stat-num">90%</div>
+        <div class="stat-text">Вопросов без менеджера</div>
+    </div>
+</div>
+
+<!-- Features -->
+<section class="section section-dark" id="features">
+    <div class="container">
+        <h2 class="section-title">Что умеет Mike AI</h2>
+        <p class="section-sub">Не просто чат-бот. Полноценный AI-сотрудник, который знает ваш бизнес.</p>
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon">🧠</div>
+                <h3>Отвечает по базе знаний</h3>
+                <p>Загрузите документы (прайс, FAQ, инструкции) — бот будет отвечать на вопросы клиентов точно по вашим материалам.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">📱</div>
+                <h3>3 канала в одном</h3>
+                <p>Telegram бот + VK бот + виджет на сайт. Одна база знаний — три точки входа для клиентов.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">📋</div>
+                <h3>Собирает заявки</h3>
+                <p>Когда клиент готов купить — бот собирает контакт и отправляет вам уведомление в Telegram.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">📊</div>
+                <h3>Аналитика и статистика</h3>
+                <p>Панель управления с метриками: сколько вопросов, заявок, какие темы популярны, где бот не справился.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">💬</div>
+                <h3>Живой тон общения</h3>
+                <p>Бот общается на понятном языке, как живой консультант. Не роботизированные шаблоны, а естественные ответы.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🔒</div>
+                <h3>Ваши данные изолированы</h3>
+                <p>Каждый клиент — отдельная база данных. Никто не видит чужие документы и заявки.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- How it works -->
+<section class="section" id="how">
+    <div class="container">
+        <h2 class="section-title">Как это работает</h2>
+        <p class="section-sub">От подключения до первого ответа клиенту — один день.</p>
+        <div class="steps">
+            <div class="step">
+                <div class="step-num">1</div>
+                <h3>Оставьте заявку</h3>
+                <p>Расскажите о бизнесе и какие вопросы задают клиенты. Мы подберём тариф.</p>
+            </div>
+            <div class="step">
+                <div class="step-num">2</div>
+                <h3>Загрузите документы</h3>
+                <p>Прайс-лист, FAQ, описание услуг — всё, что бот должен знать о вашем бизнесе.</p>
+            </div>
+            <div class="step">
+                <div class="step-num">3</div>
+                <h3>Подключаем каналы</h3>
+                <p>Telegram бот, VK группа, виджет на сайт — выбирайте нужные каналы.</p>
+            </div>
+            <div class="step">
+                <div class="step-num">4</div>
+                <h3>Бот работает</h3>
+                <p>Клиенты пишут — бот отвечает. Вы видите аналитику и заявки в панели управления.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Channels -->
+<section class="section section-dark">
+    <div class="container">
+        <h2 class="section-title">Каналы связи</h2>
+        <p class="section-sub">Ваш бот работает там, где ваши клиенты.</p>
+        <div class="channels">
+            <div class="channel">
+                <div class="channel-icon">✈️</div>
+                <div class="channel-name">Telegram</div>
+            </div>
+            <div class="channel">
+                <div class="channel-icon">💠</div>
+                <div class="channel-name">ВКонтакте</div>
+            </div>
+            <div class="channel">
+                <div class="channel-icon">🌐</div>
+                <div class="channel-name">Виджет на сайт</div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Pricing -->
+<section class="section" id="pricing">
+    <div class="container">
+        <h2 class="section-title">Тарифы</h2>
+        <p class="section-sub">Выберите план под ваш бизнес. Без скрытых платежей.</p>
+        <div class="pricing-grid">
+            <div class="price-card">
+                <div class="price-name">Старт</div>
+                <div class="price-amount">7 900 ₽<span>/мес</span></div>
+                <div class="price-desc">Для малого бизнеса</div>
+                <ul class="price-features">
+                    <li>Telegram бот</li>
+                    <li>До 500 сообщений/мес</li>
+                    <li>Панель управления</li>
+                    <li>Загрузка документов</li>
+                    <li>Сбор заявок</li>
+                    <li>Email поддержка</li>
+                </ul>
+                <a href="#contact" class="price-btn price-btn-outline">Подключить</a>
+            </div>
+            <div class="price-card popular">
+                <div class="price-name">Бизнес</div>
+                <div class="price-amount">14 900 ₽<span>/мес</span></div>
+                <div class="price-desc">Для растущих компаний</div>
+                <ul class="price-features">
+                    <li>Telegram + VK бот</li>
+                    <li>Виджет на сайт</li>
+                    <li>До 2 000 сообщений/мес</li>
+                    <li>Панель управления</li>
+                    <li>Аналитика и статистика</li>
+                    <li>Экспорт данных</li>
+                    <li>Приоритетная поддержка</li>
+                </ul>
+                <a href="#contact" class="price-btn price-btn-primary">Подключить</a>
+            </div>
+            <div class="price-card">
+                <div class="price-name">Премиум</div>
+                <div class="price-amount">29 900 ₽<span>/мес</span></div>
+                <div class="price-desc">Максимум возможностей</div>
+                <ul class="price-features">
+                    <li>Все каналы</li>
+                    <li>Безлимит сообщений</li>
+                    <li>WhatsApp бот</li>
+                    <li>Календарь записей</li>
+                    <li>Аналитика по каналам</li>
+                    <li>Персональная настройка</li>
+                    <li>Менеджер 24/7</li>
+                </ul>
+                <a href="#contact" class="price-btn price-btn-outline">Подключить</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Contact -->
+<section class="section section-dark" id="contact">
+    <div class="container">
+        <h2 class="section-title">Подключить Mike AI</h2>
+        <p class="section-sub">Оставьте заявку — мы свяжемся в течение часа.</p>
+        <div class="contact-form">
+            <form id="leadForm" onsubmit="return submitLead(event)">
+                <div class="form-group">
+                    <label>Имя</label>
+                    <input type="text" name="name" placeholder="Как вас зовут?" required>
+                </div>
+                <div class="form-group">
+                    <label>Телефон или Telegram</label>
+                    <input type="text" name="phone" placeholder="+7 (___) ___-__-__ или @username" required>
+                </div>
+                <div class="form-group">
+                    <label>Сфера бизнеса</label>
+                    <input type="text" name="business" placeholder="Например: салон красоты, автосервис, магазин">
+                </div>
+                <div class="form-group">
+                    <label>Интересующий тариф</label>
+                    <select name="tariff">
+                        <option value="start">Старт — 7 900 ₽/мес</option>
+                        <option value="business" selected>Бизнес — 14 900 ₽/мес</option>
+                        <option value="premium">Премиум — 29 900 ₽/мес</option>
+                        <option value="unknown">Не определился</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Комментарий (необязательно)</label>
+                    <textarea name="comment" placeholder="Расскажите подробнее о задаче"></textarea>
+                </div>
+                <button type="submit" class="form-submit" id="submitBtn">Отправить заявку</button>
+                <div class="form-msg" id="formMsg"></div>
+            </form>
+        </div>
+    </div>
+</section>
+
+<!-- Footer -->
+<div class="footer">
+    <p>Mike AI &copy; 2025 — AI-ассистент для бизнеса</p>
+    <p style="margin-top:8px"><a href="/login">Вход для клиентов</a></p>
+</div>
+
+<script>
+async function submitLead(e) {
+    e.preventDefault();
+    const form = e.target;
+    const btn = document.getElementById('submitBtn');
+    const msg = document.getElementById('formMsg');
+    btn.disabled = true;
+    btn.textContent = 'Отправка...';
+    msg.className = 'form-msg';
+    msg.style.display = 'none';
+    
+    const data = {
+        name: form.name.value,
+        phone: form.phone.value,
+        business: form.business.value,
+        tariff: form.tariff.value,
+        comment: form.comment.value
+    };
+    
+    try {
+        const resp = await fetch('/api/landing-lead', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+        if (resp.ok) {
+            msg.className = 'form-msg success';
+            msg.textContent = 'Заявка отправлена! Мы свяжемся с вами в ближайшее время.';
+            msg.style.display = 'block';
+            form.reset();
+        } else {
+            throw new Error('Ошибка');
+        }
+    } catch(err) {
+        msg.className = 'form-msg error';
+        msg.textContent = 'Ошибка отправки. Попробуйте ещё раз или напишите в Telegram.';
+        msg.style.display = 'block';
+    }
+    btn.disabled = false;
+    btn.textContent = 'Отправить заявку';
+}
+
+// Smooth scroll
+document.querySelectorAll('a[href^="#"]').forEach(a => {
+    a.addEventListener('click', e => {
+        e.preventDefault();
+        const el = document.querySelector(a.getAttribute('href'));
+        if (el) el.scrollIntoView({behavior: 'smooth', block: 'start'});
+    });
+});
+</script>
+
+<!-- Mike AI Chat Widget -->
+<script src="/static/widget.js"
+  data-api=""
+  data-key="{{ api_key }}"
+  data-color="#3b82f6"
+  data-title="Онлайн-помощник Mike AI"
+  data-greeting="Привет! Чем могу помочь?">
+</script>
+
+</body>
+</html>

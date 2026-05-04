@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="header">
+    <h1>Лид-хантер</h1>
+    <div class="tenant">{{ company_name }}</div>
+</div>
+
+<!-- Stats -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-number">{{ stats.active_tasks }}</div>
+        <div class="stat-label">Активных задач</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number" style="color:#10b981">{{ stats.total }}</div>
+        <div class="stat-label">Найдено лидов</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number" style="color:#f59e0b">{{ stats.new }}</div>
+        <div class="stat-label">Новых</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number" style="color:#8b5cf6">{{ stats.contacted }}</div>
+        <div class="stat-label">Обработано</div>
+    </div>
+</div>
+
+<!-- Add task form -->
+<div class="section">
+    <h2>Добавить задачу поиска</h2>
+    {% if error %}<div style="background:#7f1d1d;color:#fca5a5;padding:10px;border-radius:8px;margin-bottom:12px">{{ error }}</div>{% endif %}
+    {% if success %}<div style="background:#065f46;color:#6ee7b7;padding:10px;border-radius:8px;margin-bottom:12px">{{ success }}</div>{% endif %}
+    <form method="POST" action="/admin/hunter/add" style="display:flex;flex-wrap:wrap;gap:10px;align-items:end">
+        <div>
+            <label style="display:block;font-size:11px;color:#64748b;margin-bottom:4px">Платформа</label>
+            <select name="platform" style="width:130px">
+                <option value="vk">VK</option>
+                <option value="telegram">Telegram</option>
+            </select>
+        </div>
+        <div>
+            <label style="display:block;font-size:11px;color:#64748b;margin-bottom:4px">Цель (группа/чат)</label>
+            <input type="text" name="target" placeholder="auto_msk или search:" required style="width:200px">
+        </div>
+        <div>
+            <label style="display:block;font-size:11px;color:#64748b;margin-bottom:4px">Ключевые слова (через запятую)</label>
+            <input type="text" name="keywords" placeholder="VPN, впн, обход блокировок" required style="width:250px">
+        </div>
+        <div>
+            <label style="display:block;font-size:11px;color:#64748b;margin-bottom:4px">Город (необязательно)</label>
+            <input type="text" name="city" placeholder="Москва" style="width:130px">
+        </div>
+        <div>
+            <label style="display:block;font-size:11px;color:#64748b;margin-bottom:4px">Лимит/день</label>
+            <input type="number" name="daily_limit" value="10" style="width:80px">
+        </div>
+        <button type="submit" class="btn" style="height:36px">Добавить</button>
+    </form>
+    <p style="margin-top:8px;font-size:12px;color:#64748b">
+        <strong>VK:</strong> укажи домен группы (напр. <code>auto_msk</code>) или <code>search:</code> для глобального поиска.<br>
+        <strong>Telegram:</strong> укажи username чата (напр. <code>chat_auto_msk</code>). Требуется Telethon + API credentials.<br>
+        <strong>Город:</strong> для глобального поиска VK можно указать город — лиды будут только из этого региона.
+    </p>
+</div>
+
+<!-- Active tasks -->
+<div class="section">
+    <h2>Задачи поиска ({{ tasks|length }})</h2>
+    {% if tasks %}
+    <table>
+        <tr>
+            <th>ID</th>
+            <th>Платформа</th>
+            <th>Цель</th>
+            <th>Ключевые слова</th>
+            <th>Город</th>
+            <th>Статус</th>
+            <th>Последний скан</th>
+            <th>Действия</th>
+        </tr>
+        {% for t in tasks %}
+        <tr>
+            <td>{{ t.id }}</td>
+            <td>
+                {% if t.platform == 'vk' %}
+                    <span style="color:#4c75a3;font-weight:600">VK</span>
+                {% else %}
+                    <span style="color:#0088cc;font-weight:600">TG</span>
+                {% endif %}
+            </td>
+            <td><code>{{ t.target }}</code></td>
+            <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ t.keywords }}</td>
+            <td class="text-muted">{{ t.city or "—" }}</td>
+            <td>
+                {% if t.is_active %}
+                    <span class="badge badge-new">Активна</span>
+                {% else %}
+                    <span class="badge badge-neg">Пауза</span>
+                {% endif %}
+            </td>
+            <td class="text-muted">{{ t.last_scan[:16] if t.last_scan else "—" }}</td>
+            <td style="display:flex;gap:6px">
+                {% if t.is_active %}
+                <form method="POST" action="/admin/hunter/task/{{ t.id }}/toggle" style="margin:0">
+                    <input type="hidden" name="action" value="pause">
+                    <button class="btn btn-sm btn-danger">Пауза</button>
+                </form>
+                {% else %}
+                <form method="POST" action="/admin/hunter/task/{{ t.id }}/toggle" style="margin:0">
+                    <input type="hidden" name="action" value="resume">
+                    <button class="btn btn-sm">Запустить</button>
+                </form>
+                {% endif %}
+                <form method="POST" action="/admin/hunter/task/{{ t.id }}/run" style="margin:0">
+                    <button class="btn btn-sm" style="background:#6366f1;color:white">Сканировать</button>
+                </form>
+                <form method="POST" action="/admin/hunter/task/{{ t.id }}/delete" style="margin:0" onsubmit="return confirm('Удалить задачу и все её лиды?')">
+                    <button class="btn btn-sm btn-danger">✕</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% else %}
+    <p class="text-muted">Нет задач. Добавьте первую задачу выше.</p>
+    {% endif %}
+</div>
+
+<!-- Found leads -->
+<div class="section">
+    <h2>Найденные лиды</h2>
+    {% if leads %}
+    <table>
+        <tr>
+            <th>Время</th>
+            <th>Платформа</th>
+            <th>Источник</th>
+            <th>Автор</th>
+            <th>Текст</th>
+            <th>Релевантность</th>
+            <th>Статус</th>
+            <th></th>
+        </tr>
+        {% for l in leads %}
+        <tr>
+            <td class="text-muted" style="white-space:nowrap">{{ l.created_at[:16] if l.created_at else "—" }}</td>
+            <td>
+                {% if l.platform == 'vk' %}
+                    <span style="color:#4c75a3;font-weight:600">VK</span>
+                {% else %}
+                    <span style="color:#0088cc;font-weight:600">TG</span>
+                {% endif %}
+            </td>
+            <td>
+                {% if l.source_url %}
+                    <a href="{{ l.source_url }}" target="_blank" style="color:#3b82f6">{{ l.task_target or "ссылка" }}</a>
+                {% else %}
+                    {{ l.task_target or "—" }}
+                {% endif %}
+            </td>
+            <td>{{ l.author_name or l.author_id or "—" }}</td>
+            <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{{ l.text }}">{{ l.text[:100] }}</td>
+            <td>
+                {% if l.relevance_score >= 0.8 %}
+                    <span class="badge badge-new">HOT</span>
+                {% elif l.relevance_score >= 0.5 %}
+                    <span class="badge badge-done">WARM</span>
+                {% else %}
+                    <span class="badge badge-neg">COLD</span>
+                {% endif %}
+            </td>
+            <td>
+                {% if l.status == 'new' %}
+                    <span class="badge badge-new">Новый</span>
+                {% elif l.status == 'contacted' %}
+                    <span class="badge badge-done">Написали</span>
+                {% else %}
+                    <span class="badge">{{ l.status }}</span>
+                {% endif %}
+            </td>
+            <td>
+                {% if l.status == 'new' %}
+                <form method="POST" action="/admin/hunter/lead/{{ l.id }}/status" style="margin:0">
+                    <input type="hidden" name="status" value="contacted">
+                    <button class="btn btn-sm">Написал</button>
+                </form>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% else %}
+    <p class="text-muted">Лиды пока не найдены. Добавьте задачу и дождитесь скана.</p>
+    {% endif %}
+</div>
+{% endblock %}
